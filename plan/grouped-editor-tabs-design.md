@@ -1,10 +1,10 @@
 # Directory Grouped Editor Tabs - 設計書
 
-- **文書状態**: Draft v0.1
+- **文書状態**: Draft v0.2
 - **作成日**: 2026-08-21
 - **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
 - **関連要望**: IJPL-186183
-- **実装方針**: 公開APIのみ。`@ApiStatus.Internal`、deprecated API、reflection による内部実装アクセスは禁止する。
+- **実装方針**: **Stable Public API Only**。deprecated / experimental / scheduled-for-removal / internal API および reflection による内部実装アクセスを禁止し、Plugin Verifier で継続的に検証する。
 
 ---
 
@@ -44,19 +44,30 @@ Editor
 
 ## 2. 設計原則
 
-### 2.1 公開APIのみ使用する
+### 2.1 Stable Public API Only
 
-以下は禁止する。
+本プラグインは、単に「公開されているAPI」ではなく、**JetBrains IntelliJ Platform の安定公開APIのみ**を使用する。
 
+公開APIであっても、将来の変更・削除可能性が明示されているAPIは採用しない。新規実装・レビュー・リリースのすべてでこの方針を適用する。
+
+#### 使用禁止
+
+- `@Deprecated` が付与されたAPI
+- `@ApiStatus.Internal` が付与されたAPI
+- `@ApiStatus.Experimental` が付与されたAPI
+- `@ApiStatus.ScheduledForRemoval` が付与されたAPI
+- `@ApiStatus.Obsolete` が付与されたAPI
 - `FileEditorManagerEx`
 - `EditorWindow`
 - Editor Tabs の内部コンテナ実装
-- `@ApiStatus.Internal` が付与されたAPI
-- deprecated API
 - reflection による private/internal メンバーアクセス
 - IDE内部コンポーネントのComponent Tree探索に依存する実装
 
-IDE更新に対する耐性と JetBrains Marketplace での配布可能性を優先する。
+`@ApiStatus.OverrideOnly` / `@ApiStatus.NonExtendable` はアノテーションの契約に反する使い方を禁止し、Plugin Verifier 上の violation を0件とする。
+
+Experimental APIを「一時的に1件だけ許容する」といった例外運用は原則設けない。Stable Public APIだけでは要件を満たせない場合、Internal / Experimental APIへfallbackするのではなく、機能の縮小・別UI・fail-safeを選択する。
+
+IDE更新に対する耐性と JetBrains Marketplace での長期配布可能性を、短期的な機能実現より優先する。
 
 ### 2.2 標準Editor Tabsそのものは改造しない
 
@@ -102,7 +113,7 @@ huga/users
 - ファイルタブ選択で通常のIntelliJ Editorを開く
 - Editor split が存在しても破綻しない
 - Dark / Light Theme でIntelliJ UIに馴染む表示
-- 公開APIのみで実装
+- Stable Public API Onlyで実装
 
 ### 3.2 v1.0では実現しないこと
 
@@ -533,11 +544,13 @@ FileEditor破棄時には必ず `removeTopComponent()` と dispose を行う。
 
 ### 11.3 UIコンポーネント
 
-JetBrains UIガイドに従い、Editor系タブには `JBEditorTabs` を第一候補とする。
+JetBrains UIガイドに従い、Editor系タブには IntelliJ Platform のTabs APIを利用する。
+
+実装クラス `JBEditorTabs` を直接newするのではなく、**`JBTabsFactory.createEditorTabs(project, parentDisposable)` を第一候補**とする。Factory経由にすることで、deprecated constructorやInternal constructorを誤って選択するリスクを下げる。
 
 独自描画で標準タブを模倣するより、IntelliJ Platform UIコンポーネントを利用する。
 
-ただし、実装時に2026.2 SDK上でpublic API statusを再確認し、Internal依存が発生する場合は公開Swing/JB UIコンポーネントのみで代替する。
+実装時には対象SDK上のannotationとPlugin Verifier結果を必ず確認する。Factory/API自体がDeprecated・Experimental・Internal等へ変更された場合は、そのAPIを継続利用せず、Stable Public APIまたは公開Swing/JB UIコンポーネントで代替する。
 
 ---
 
@@ -596,7 +609,7 @@ Group/File Tabをクリックした場合は、ユーザーが現在操作して
 
 Split制御のために `FileEditorManagerEx` / `EditorWindow` は使用しない。
 
-公開APIだけで現在splitへの確実なopenが保証できないケースでは、IDE標準のopen挙動をそのまま採用する。
+Stable Public APIだけで現在splitへの確実なopenが保証できないケースでは、IDE標準のopen挙動をそのまま採用する。
 
 ---
 
@@ -638,7 +651,7 @@ FileEditorManager.getInstance(project).closeFile(file)
 
 `closeFile()` は指定ファイルのEditorを閉じるため、同一ファイルを複数splitで開いている場合はIDE標準の「特定splitだけ閉じる」と完全には一致しない可能性がある。
 
-v1.0では公開API優先のため、この挙動を仕様とする。
+v1.0ではStable Public API優先のため、この挙動を仕様とする。
 
 対応UI:
 
@@ -917,11 +930,39 @@ moduleB/src/main/users
 - Tab placement: None
 - Scratch / project外file
 
-### 24.4 Compatibility
+### 24.4 Compatibility / API Stability Gate
 
-- IntelliJ Plugin VerifierをCIで実行
-- Internal API usage検出を0件にする
-- deprecated API usageを0件にする
+IntelliJ Plugin VerifierをCIで実行し、**Compatibleであることだけでは合格としない**。
+
+少なくとも次のカテゴリをCIの失敗条件として扱う。
+
+```text
+Compatibility problems                 0
+Deprecated API usages                   0
+Scheduled-for-removal API usages        0
+Experimental API usages                 0
+Internal API usages                     0
+OverrideOnly violations                 0
+NonExtendable violations                0
+Missing dependencies                    0
+Invalid plugin problems                 0
+```
+
+Plugin Verifier / IntelliJ Platform Gradle Plugin の名称変更があった場合は、同等の検査カテゴリへ追従する。
+
+#### 対応IDE方針
+
+v1.0の最小対応基準は **IntelliJ Platform / IntelliJ IDEA 2026.2 系**とする。
+
+新規プラグインであるため、2024.x / 2025.x への後方互換のためだけに旧APIを導入しない。対応範囲を広げる場合もStable Public API Onlyを維持できることを条件とする。
+
+CIでは最低限、次を検証する。
+
+- 最小サポート対象の2026.2系
+- リリース時点の最新安定IDE
+- 実用可能であれば次期IDE / EAPを早期警告目的で追加
+
+次期IDE / EAPでdeprecated等が新規検出された場合は、正式リリース前に置換候補を調査する。
 
 ---
 
@@ -980,7 +1021,7 @@ controller.go | model.go | service.go
 
 **完了条件**:
 
-Internal / deprecated API 0件、主要操作でUI同期の破綻なし。
+Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契約違反0件、主要操作でUI同期の破綻なし。
 
 ---
 
@@ -1016,11 +1057,15 @@ Internal / deprecated API 0件、主要操作でUI同期の破綻なし。
 - [ ] 長いlabelでレイアウト崩壊しない
 - [ ] overflow時も全Group/Fileへ到達できる
 
-### Safety
+### Safety / API Stability
 
-- [ ] Internal API不使用
-- [ ] deprecated API不使用
+- [ ] deprecated API使用 0件
+- [ ] Scheduled-for-removal API使用 0件
+- [ ] Experimental API使用 0件
+- [ ] Internal API使用 0件
+- [ ] OverrideOnly / NonExtendable の契約違反 0件
 - [ ] reflection不使用
+- [ ] Plugin VerifierのAPI安定性ゲートが全対象IDEで通過する
 - [ ] Editor本体の操作を妨害しない
 - [ ] Project close後に参照/leakを残さない
 
@@ -1028,7 +1073,9 @@ Internal / deprecated API 0件、主要操作でUI同期の破綻なし。
 
 ## 27. API使用方針
 
-初期実装で中心となる公開API:
+### 27.1 Stable API Allow List
+
+初期実装で中心となる候補は次の通り。**実装時点の対象SDKでStable Publicであることを再確認したものだけを採用する。**
 
 ```text
 com.intellij.openapi.fileEditor.FileEditorManager
@@ -1038,11 +1085,10 @@ com.intellij.openapi.vfs.VirtualFile
 com.intellij.openapi.vfs.VirtualFileManager
 com.intellij.openapi.vfs.newvfs.BulkFileListener
 com.intellij.util.messages.MessageBus
+com.intellij.ui.tabs.JBTabsFactory
 ```
 
-UIではJetBrains Platformの公開UI componentを優先する。
-
-特に次の操作を利用する。
+主要操作:
 
 ```text
 FileEditorManager.getInstance(project)
@@ -1052,22 +1098,52 @@ FileEditorManager.closeFile(...)
 FileEditorManager.addTopComponent(...)
 FileEditorManager.removeTopComponent(...)
 FileEditorManagerListener.FILE_EDITOR_MANAGER
+FileEditorManagerListener.fileOpened(...)
+FileEditorManagerListener.fileClosed(...)
+FileEditorManagerListener.selectionChanged(...)
+JBTabsFactory.createEditorTabs(project, parentDisposable)
 ```
 
-実装時にSDK上のannotationを必ず確認し、公開状態が変化していた場合は設計を見直す。
+### 27.2 同一クラス内でもAPI単位で判定する
+
+クラス自体が利用可能でも、個々のconstructor / methodがDeprecated・Internal等である場合がある。したがって「クラス名がAllow Listにあるから全メンバーを使用可能」とは判断しない。
+
+特に `FileEditorManagerListener` の旧 `fileOpenedSync(...)` overloadはDeprecatedであるため使用しない。同期open通知が必要になった場合は、その時点でJetBrainsが案内しているStable Publicな代替APIを採用する。
+
+Tabs UIも `JBEditorTabs` のconstructorを直接選択せず、Stable Publicな `JBTabsFactory.createEditorTabs(...)` を優先する。これによりDeprecated / ScheduledForRemoval / Internal constructorへの誤依存を避ける。
+
+### 27.3 Annotation Audit
+
+新しいIntelliJ Platform APIを導入するPRでは、最低限次を確認する。
+
+1. 対象SDKのsource / documentationでannotationを確認
+2. `@Deprecated` / `@ApiStatus.*` の有無を確認
+3. 代替APIが存在する場合は新APIを採用
+4. Plugin Verifierを実行
+5. API Stability Gateが0件であることを確認
+
+IDEバージョン更新時も同じ監査を行う。既存APIが後からDeprecated等になった場合は、互換性がまだ残っていても技術的負債として放置せず、原則として次回リリースまでに置換する。
 
 ---
 
 ## 28. 明示的な禁止API / 禁止アプローチ
 
-次のコードへ依存してはならない。
+次のコード・状態へ依存してはならない。
 
 ```text
+@Deprecated API
+@ApiStatus.Internal API
+@ApiStatus.Experimental API
+@ApiStatus.ScheduledForRemoval API
+@ApiStatus.Obsolete API
 com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 EditorWindow
 EditorComposite implementation
 EditorTabs implementation
 JBTabs implementation internals
+FileEditorManagerListener.fileOpenedSync(...) のDeprecated overload
+JBEditorTabs のDeprecated / ScheduledForRemoval constructor
+JBEditorTabs のInternal constructor
 ```
 
 また、標準Editor TabsのSwing componentを探索して:
@@ -1090,7 +1166,7 @@ remove(...)
 
 1. `FileEditorManager` はopen files、file open/close、FileEditor上部component追加を公開APIとして提供している。
 2. `FileEditorManagerListener` はProject-Level Listenerとして公開されている。
-3. IntelliJ Platform UIガイドではEditor系tabsに `JBEditorTabs` を使用する方針が示されている。
+3. IntelliJ Platformは `JBTabsFactory.createEditorTabs(...)` を公開Factoryとして提供しており、実装クラスのconstructorへ直接依存せずEditor系Tabsを生成できる。
 4. IntelliJ IDEA自体がEditor Tabを非表示にするTabless UIを正式に提供している。
 
 したがって、標準Editor Tabs内部を書き換えず、独自Group TabsをEditor直上へ追加する方式を採用する。
@@ -1105,6 +1181,10 @@ remove(...)
   - https://plugins.jetbrains.com/docs/intellij/intellij-platform-extension-point-list.html
 - JetBrains IntelliJ Platform UI Guidelines - Tabs
   - https://plugins.jetbrains.com/docs/intellij/tabs.html
+- JetBrains IntelliJ Platform - API / Compatibility guidance
+  - https://plugins.jetbrains.com/docs/intellij/api-changes-list.html
+- JetBrains IntelliJ Platform Gradle Plugin - Plugin Verification
+  - https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
 - JetBrains Guide - Tabless UI in any JetBrains IDE
   - https://www.jetbrains.com/guide/tips/tabless-ui/
 - IntelliJ IDEA Help - Editor Tabs
@@ -1118,7 +1198,7 @@ remove(...)
 
 本プラグインは **「標準Editor Tabsをハックしてフォルダグループを追加するプラグイン」ではない**。
 
-次の構造を公開APIだけで構築する。
+次の構造を **Stable Public API Only** で構築する。
 
 ```text
                    Open VirtualFiles
