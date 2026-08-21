@@ -552,11 +552,13 @@ requestRefresh → 全Header再描画
 
 #### ドラッグ中の再構築禁止
 
-JBTabsのドラッグ中にタブ列を作り直すと、DragHelperが保持する `TabInfo` が消えてNPEになる。そのためTabStripは:
+JBTabsのドラッグ中にタブ列を作り直すと、DragHelperが保持する `TabInfo` が消えてNPEになり（`SingleRowLayout.layoutLabels`）、`reallocate` で戻された幽霊タブが重なり・余白として残る。またJBTabsは「ドラッグ中のタブ＝選択中タブ」の前提でラベルを動かすため、ドラッグ中に選択を動かすと別のラベルがマウスに追従する。そのためTabStripは:
 
 - キー列が同じなら `TabInfo` をin-place更新し、再構築しない
-- マウスボタンが押されている間に届いた構造変更は **実際にボタンが離されるまで** 遅延する。JBTabsのドラッグではreleaseがタブラベルではなくglass paneへ届くため、押下中だけ `Toolkit.addAWTEventListener` でアプリ全体の `MOUSE_RELEASED` / `MOUSE_DRAGGED` を監視する
-- releaseを取りこぼした場合の安全弁としてタイマーを持つが、直近にドラッグイベントが観測されていれば発火を先送りする（長時間ドラッグ中に再構築へ戻らない）
+- **ドラッグ状態はマウスイベントから推測しない。** 実際のドラッグではIDEのglass pane（`MouseDragHelper`）が `MOUSE_DRAGGED` / `MOUSE_RELEASED` を consume するため、タブラベルのリスナーにも `Toolkit.addAWTEventListener` にも届かない（v1.0 Final のサンドボックスログで確認済み）
+- 代わりに全 `TabInfo` に `TabInfo.DragDelegate`（Stable API）を設定し、JBTabsから `dragStarted` / `dragFinishedOrCanceled` を直接受け取る。ドラッグ中および通常の押下中（press〜release）は、構造変更と選択の移動を遅延し、インタラクション終了後に次のEDTターンで最新の描画を流す（テキスト／アイコンのin-place更新はそのまま行う）
+- releaseを取りこぼした場合の安全弁として長めのタイマー（10秒）だけ残す。実際のドラッグ判定には使わない
+- 遷移は押下ではなくクリック（release）で行う（8）。押下で遷移するとドラッグ対象のHeaderが隠れ、上記の前提がすべて崩れる
 
 #### 制約
 
@@ -567,6 +569,8 @@ JBTabsのドラッグ中にタブ列を作り直すと、DragHelperが保持す�
 ---
 
 ## 8. 選択動作
+
+Group Tab / File Tab の遷移は **クリック（ボタンのrelease、ドラッグなし）** で行う。JBTabsが押下時にタブを選択（ハイライト）する `selectionChanged` では遷移しない。押下時に遷移するとマウス直下のEditorが切り替わってHeaderが隠れ、(1) 非アクティブなGroup Tabのドラッグが成立しない、(2) 隠れたHeaderにreleaseが届かず押下状態が残って描画が止まる、(3) JBTabsのDragHelperにも押下状態が残り次のドラッグで古い `TabInfo` が戻されてNPE・幽霊タブになる（v1.0 Final サンドボックスログで確認）。ドラッグが起きた場合は遷移しない。
 
 ### 8.1 File Tabを選択
 
@@ -1280,7 +1284,7 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 | 優先度 | 指摘 | 対応 |
 |---|---|---|
 | P1 | 新規GroupをDnDしても末尾へ保存される | `GroupOrder.applyReorder` を「表示順最優先」に変更（7.1） |
-| P1 | 3秒タイマーが長時間ドラッグ中に再構築を起こし得る | 実際のrelease監視＋ドラッグ活動中はタイマー先送り（7.1） |
+| P1 | 3秒タイマーが長時間ドラッグ中に再構築を起こし得る | `TabInfo.DragDelegate` でJBTabsのドラッグ開始/終了を直接受け取り、その間は再構築と選択移動を遅延（7.1）。release監視案はglass paneがイベントをconsumeするため不成立だった |
 | P2 | READMEの対応IDE表記と `untilBuild` の不一致 | README を 2026.2.x に修正 |
 | P3 | `EditorHeaderRegistry` がidentity mapでない | `IdentityHashMap`（copy-on-write）へ変更 |
 | P3 | `Other` GroupのDnD順序が保持されない | 合成キーで保持（14） |
