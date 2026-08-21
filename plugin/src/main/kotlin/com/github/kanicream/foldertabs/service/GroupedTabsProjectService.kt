@@ -70,7 +70,10 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     // ---- events from FolderTabsEditorListener ----------------------------------------
 
+    private val enabled: Boolean get() = FolderTabsSettings.getInstance().enabled
+
     fun onFileOpened(file: VirtualFile) {
+        if (!enabled) return
         attachHeaders(file)
         requestRefresh()
     }
@@ -84,19 +87,31 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     fun onSelectionChanged(newFile: VirtualFile?) {
         newFile?.let(lastActive::remember)
+        if (!enabled) return
         newFile?.let(::attachHeaders)
         requestRefresh()
     }
 
     /** Safety net for editors restored before the listener saw them. */
     fun attachAllOpenEditors() {
+        if (!enabled) return
         editorManager().openFiles.forEach(::attachHeaders)
         requestRefresh()
+    }
+
+    /** Re-applies Application-level settings (design section 21): ON attaches, OFF removes all headers. */
+    fun applySettings() {
+        if (enabled) {
+            attachAllOpenEditors()
+        } else {
+            registry.all().forEach { (editor, _) -> detachHeader(editor) }
+        }
     }
 
     // ---- VFS (design section 10) ------------------------------------------------------
 
     fun onVfsEvents(events: List<VFileEvent>) {
+        if (!enabled) return
         val summary: VfsChangeSummary = runCatching {
             VfsChangeClassifier.classify(events, editorManager().openFiles.toList())
         }.getOrElse {

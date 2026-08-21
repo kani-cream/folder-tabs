@@ -8,6 +8,7 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.dsl.builder.bindItem
+import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 
 /** `Settings > Tools > Folder Tabs` (design section 21). Application-level. */
@@ -20,6 +21,11 @@ class FolderTabsConfigurable : BoundSearchableConfigurable(
     override fun createPanel(): DialogPanel {
         val settings = FolderTabsSettings.getInstance()
         return panel {
+            row {
+                checkBox(FolderTabsBundle.message("settings.enabled"))
+                    .bindSelected({ settings.enabled }, { settings.enabled = it })
+                    .comment(FolderTabsBundle.message("settings.enabled.comment"))
+            }
             row(FolderTabsBundle.message("settings.group.label.depth")) {
                 comboBox(FolderTabsSettings.DEPTH_CHOICES, DepthRenderer())
                     .bindItem({ settings.groupLabelDepth }, { settings.groupLabelDepth = it ?: GroupLabelPolicy.DEFAULT_DEPTH })
@@ -30,10 +36,10 @@ class FolderTabsConfigurable : BoundSearchableConfigurable(
 
     override fun apply() {
         super.apply()
-        // Settings are application-wide: re-render every open project's headers (design 6.5).
+        // Settings are application-wide: apply to every open project (design 6.5 / 21).
         ProjectManager.getInstance().openProjects
             .filter { !it.isDisposed }
-            .forEach { GroupedTabsProjectService.getInstance(it).requestRefresh() }
+            .forEach { GroupedTabsProjectService.getInstance(it).applySettings() }
     }
 
     private class DepthRenderer : SimpleListCellRenderer<Int>() {

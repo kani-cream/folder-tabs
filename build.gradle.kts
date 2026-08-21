@@ -9,5 +9,5 @@ allprojects {
     group = "com.github.kanicream.foldertabs"
     // Release phases per plan/grouped-editor-tabs-design.md section 25:
     // 0.1.0 = Core, 0.5.0 = Sync & UX, 1.0.0 = Usability & Stabilization.
-    version = "0.1.0"
+    version = "1.0.0"
 }
