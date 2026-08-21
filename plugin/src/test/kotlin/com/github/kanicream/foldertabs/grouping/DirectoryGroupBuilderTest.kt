@@ -1,5 +1,6 @@
 package com.github.kanicream.foldertabs.grouping
 
+import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -43,6 +44,20 @@ class DirectoryGroupBuilderTest : BasePlatformTestCase() {
         val group = model.groups.single()
         assertNull(group.directory)
         assertEquals(MinimalUniquePathResolver.FALLBACK_NAME, group.displayName)
+    }
+
+    fun testOtherGroupFollowsSavedOrderViaItsOrderKey() {
+        val users = file("users/a.go")
+        val builder = DirectoryGroupBuilder(
+            projectBasePath = null,
+            labelPolicy = GroupLabelPolicy(1, "proj"),
+            savedGroupOrder = listOf(DirectoryGroupModel.OTHER_ORDER_KEY, users.parent.url),
+            isModified = { false },
+        )
+        val model = builder.build(listOf(users, LightVirtualFile("scratch.txt")))
+        assertEquals(listOf(MinimalUniquePathResolver.FALLBACK_NAME, "users"), model.groups.map { it.displayName })
+        assertEquals(DirectoryGroupModel.OTHER_ORDER_KEY, model.groups.first().orderKey)
+        assertEquals(users.parent.url, model.groups.last().orderKey)
     }
 
     fun testDirectoriesAndDuplicatesAreIgnored() {

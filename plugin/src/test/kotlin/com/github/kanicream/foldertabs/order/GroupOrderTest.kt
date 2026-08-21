@@ -30,9 +30,33 @@ class GroupOrderTest {
     }
 
     @Test
-    fun `reorder appends newly seen groups after saved ones`() {
+    fun `reorder records the dragged order of new groups, not append`() {
+        // saved: a; user opens n1, n2 and drags them around a
         val result = GroupOrder.applyReorder(saved = listOf("a"), visibleNewOrder = listOf("n2", "a", "n1"))
-        assertEquals(listOf("a", "n2", "n1"), result)
+        assertEquals(listOf("n2", "a", "n1"), result)
+    }
+
+    @Test
+    fun `reorder keeps new groups next to their visible neighbours around hidden entries`() {
+        // saved: x, a, y (x and y are closed); visible after drag: n2, a, n1
+        val result = GroupOrder.applyReorder(saved = listOf("x", "a", "y"), visibleNewOrder = listOf("n2", "a", "n1"))
+        assertEquals(listOf("x", "n2", "a", "n1", "y"), result)
+    }
+
+    @Test
+    fun `reorder moves a new group to the front of saved groups when dragged there`() {
+        // saved: users, orders; user opens payments and drags it leftmost
+        val result = GroupOrder.applyReorder(
+            saved = listOf("users", "orders"),
+            visibleNewOrder = listOf("payments", "users", "orders"),
+        )
+        assertEquals(listOf("payments", "users", "orders"), result)
+    }
+
+    @Test
+    fun `reorder with only new visible groups appends them after hidden entries`() {
+        val result = GroupOrder.applyReorder(saved = listOf("x", "y"), visibleNewOrder = listOf("n2", "n1"))
+        assertEquals(listOf("x", "y", "n2", "n1"), result)
     }
 
     @Test
