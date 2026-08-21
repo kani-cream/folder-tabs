@@ -1,6 +1,6 @@
 # Directory Grouped Editor Tabs - 設計書
 
-- **文書状態**: v1.0 Release Candidate（v0.6）
+- **文書状態**: v1.0 Final（Marketplace提出前レビュー反映済み）
 - **作成日**: 2026-08-21
 - **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
 - **関連要望**: IJPL-186183
@@ -530,6 +530,8 @@ Directory Group TabsはDrag & Dropで任意の順序に並べ替えられる。�
 - 表示順は次の規則で決める
   1. 保存済み順序に含まれるGroupを、その順序で先頭に並べる
   2. 含まれないGroup（新しく開いたディレクトリ）は、その後ろに7の既定ソートで並べる
+- **並べ替え結果の保存（v1.0 確定）**: ユーザーがDrag & Dropした時点の **表示中Groupの順序を最優先** で保存する。保存済みのGroupは、閉じているGroupが占めていた位置を崩さないよう既存のスロットへ再配置し、まだ保存されていない（新しく開いた）Groupは、ドロップした隣のGroupのすぐ隣に記録する。つまり `[users] [orders]` 保存済みの状態で `payments` を開いて一番左へ動かせば、保存後も `[payments] [users] [orders]` になる（「新規Groupは末尾」は **ドラッグされるまで** の既定配置）
+- 順序エントリのキーは `DirectoryGroupModel.orderKey`（ディレクトリのVFS URL。`Other` Groupは合成キー `folder-tabs://other`）とし、`Other` も他のGroupと同様に並べ替え・保持の対象にする（14）
 - Groupが閉じられても順序エントリは残し、再度開いたときに同じ位置へ戻す。エントリ数は上限（目安200）を設け、古いものから削除する
 - ディレクトリのrename / moveでは順序エントリのURLを追従させる（10のVFS追従と同時に処理）。deleteではエントリを削除する
 - 並べ替えは1つのHeaderで行われても、Project内の全Headerへ同じ順序を反映する
@@ -547,6 +549,14 @@ requestRefresh → 全Header再描画
 ```
 
 `tabsMoved` はユーザー操作でのみ発火させる。`render` 中の `removeAllTabs` / `addTab` によるイベントは `syncing` で無視する。
+
+#### ドラッグ中の再構築禁止
+
+JBTabsのドラッグ中にタブ列を作り直すと、DragHelperが保持する `TabInfo` が消えてNPEになる。そのためTabStripは:
+
+- キー列が同じなら `TabInfo` をin-place更新し、再構築しない
+- マウスボタンが押されている間に届いた構造変更は **実際にボタンが離されるまで** 遅延する。JBTabsのドラッグではreleaseがタブラベルではなくglass paneへ届くため、押下中だけ `Toolkit.addAWTEventListener` でアプリ全体の `MOUSE_RELEASED` / `MOUSE_DRAGGED` を監視する
+- releaseを取りこぼした場合の安全弁としてタイマーを持つが、直近にドラッグイベントが観測されていれば発火を先送りする（長時間ドラッグ中に再構築へ戻らない）
 
 #### 制約
 
@@ -725,7 +735,7 @@ JetBrains UIガイドに従い、Editor系タブには IntelliJ Platform のTabs
 
 実装クラス `JBEditorTabs` を直接newするのではなく、**`JBTabsFactory.createEditorTabs(project, parentDisposable)` を第一候補**とする。Factory経由にすることで、deprecated constructorやInternal constructorを誤って選択するリスクを下げる。
 
-独自描画で標準タブを模倣するより、IntelliJ Platform UIコンポーネントを利用する。
+独自描画で標準タブを模倣するより、IntelliJ Platform UIコンポーネントを利用する。JBTabsのドラッグ中にタブ列を再構築しない規則は7.1を参照。
 
 実装時には対象SDK上のannotationとPlugin Verifier結果を必ず確認する。Factory/API自体がDeprecated・Experimental・Internal等へ変更された場合は、そのAPIを継続利用せず、Stable Public APIまたは公開Swing/JB UIコンポーネントで代替する。
 
@@ -825,6 +835,8 @@ Scratch、設定ファイル、外部ファイルなど、Project Base Directory
 ```
 
 へフォールバックする。
+
+`Other` Groupもユーザー並べ替え（7.1）の対象であり、順序は合成キー `folder-tabs://other` で保持する（ディレクトリURLではないため実在パスと衝突しない）。
 
 ---
 
@@ -1260,6 +1272,41 @@ controller.go | model.go | service.go
 **完了条件**:
 
 Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契約違反0件、主要操作でUI同期の破綻なし。さらに、標準タブを非表示にした状態でも「日常的なファイル切替UIとして使いたい」と判断できる完成度に達していること。
+
+### v1.0 Final - Marketplace提出前レビュー反映
+
+公開前コードレビューで挙がった項目と対応:
+
+| 優先度 | 指摘 | 対応 |
+|---|---|---|
+| P1 | 新規GroupをDnDしても末尾へ保存される | `GroupOrder.applyReorder` を「表示順最優先」に変更（7.1） |
+| P1 | 3秒タイマーが長時間ドラッグ中に再構築を起こし得る | 実際のrelease監視＋ドラッグ活動中はタイマー先送り（7.1） |
+| P2 | READMEの対応IDE表記と `untilBuild` の不一致 | README を 2026.2.x に修正 |
+| P3 | `EditorHeaderRegistry` がidentity mapでない | `IdentityHashMap`（copy-on-write）へ変更 |
+| P3 | `Other` GroupのDnD順序が保持されない | 合成キーで保持（14） |
+| P3 | 存在しないHelp Topic | `getHelpTopic() = null` |
+
+#### v1.0 Final Manual QA（Marketplace提出直前に1周する）
+
+```text
+- [ ] 1. 標準Tabs ON
+- [ ] 2. Tab placement None
+- [ ] 3. Split Left / Right
+- [ ] 4. 同名 users directory × 2
+- [ ] 5. 10+ Group
+- [ ] 6. 1 Groupに20+ files
+- [ ] 7. overflowから一番端のfileを選択
+- [ ] 8. modified → save
+- [ ] 9. directory rename / move
+- [ ] 10. Group DnD → IDE restart → 順序確認
+- [ ] 11. 新規Groupを開く → 既存Groupより前へDnD → refresh/restart後も位置が保たれる
+- [ ] 12. 3秒以上Groupをドラッグし、その間に別fileをopen/close → drop後に例外なく反映される
+- [ ] 13. Light / Dark
+- [ ] 14. 125% / 150% scale
+- [ ] 15. Enable OFF → ON
+- [ ] 16. Scratch / project外file（Other GroupのDnD順序も保持される）
+- [ ] 17. idea.logにExceptionなし
+```
 
 ---
 
