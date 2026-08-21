@@ -1,6 +1,6 @@
 # Directory Grouped Editor Tabs - 設計書
 
-- **文書状態**: Draft v0.2
+- **文書状態**: Draft v0.3
 - **作成日**: 2026-08-21
 - **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
 - **関連要望**: IJPL-186183
@@ -96,33 +96,75 @@ huga/users
 
 内部識別には親 `VirtualFile` を使用し、表示名のみを後述の Minimal Unique Path で生成する。
 
+### 2.5 v1.0は技術デモではなく日常利用できる品質を目標とする
+
+本プラグインは小さく保つが、v1.0を「2段タブが表示できるだけ」の技術デモにはしない。
+
+公開する以上、標準Editor Tabsから乗り換える理由があり、開発者自身が日常的に使いたいと思えることをv1.0の品質条件とする。
+
+そのためv1.0では、コアのグループ化だけでなく次の利用価値を一式そろえる。
+
+- フォルダ単位の整理とMinimal Unique Pathによる識別
+- Group / Fileの高速な切り替え
+- GroupごとのLast Active File復元
+- 未保存変更（modified）の視認
+- 長い名前・大量Group / Fileに耐えるoverflow
+- full path tooltip
+- rename / move / deleteへの追従
+- Split Editor / Tabless UIでの安全な動作
+- Light / Dark Themeへの追従
+- IDE全体で簡単にON/OFFできる設定
+
+一方で、機能数を増やすこと自体を目的にはしない。Pin、DnD、独自Closeなど、公開API制約やSplit semanticsを複雑にする機能はv1.0へ無理に入れない。
+
+実装中に「これがないと日常利用で明確に不便」と判明した小規模なUX改善は、次の条件をすべて満たす場合にv1.0へ追加してよい。
+
+1. Stable Public API Onlyを維持できる
+2. 新しい大規模サブシステムを必要としない
+3. 既存仕様の意味を曖昧にしない
+4. 自動テストまたは明確なManual Testを追加できる
+5. 日常利用の利便性を直接改善する
+
+この「v1.0 Usability Review」はv0.5完了時に一度行い、必要な小規模改善だけをv1.0へ取り込む。
+
 ---
 
 ## 3. スコープ
 
 ### 3.1 v1.0で実現すること
 
-- 開いているファイルを親ディレクトリ単位でグループ化
+- 開いている有効な非directory `VirtualFile` を親ディレクトリ単位でグループ化
 - 上段にDirectory Group Tabsを表示
 - 下段に選択中グループのFile Tabsを表示
 - 同名ディレクトリを別グループとして保持
-- 同名ディレクトリは最小一意パスで表示
+- 同名ディレクトリはMinimal Unique Pathで表示
+- Group / File Tabsを1行固定で表示し、収まらない項目はoverflowから必ず到達可能にする
+- active Group / Fileは常に視認できる状態へ自動調整する
+- Group / FileのTooltipにfull pathを表示
 - ファイルのopen / close / selectionに追従
-- ディレクトリrename / moveに追従
+- directory / fileのrename / move / deleteに追従
+- File Tabに未保存変更（modified）の状態を表示
 - グループ選択からファイル選択へのナビゲーション
-- ファイルタブ選択で通常のIntelliJ Editorを開く
-- Editor split が存在しても破綻しない
-- Dark / Light Theme でIntelliJ UIに馴染む表示
+- Group再選択時にLast Active Fileを復元
+- File Tab選択で通常のIntelliJ Editorを開く
+- Editor split が存在してもEditor本体を壊さず安全に動作する
+- `Tab placement: None` と標準タブ併用の両方で利用できる
+- Project外ファイル / Scratch等も観測可能な範囲で通常扱いする
+- Dark / Light Theme とUI scaleに追従する
+- Application-levelのEnable / Disable設定を提供し、初期値ONとする
 - Stable Public API Onlyで実装
 
 ### 3.2 v1.0では実現しないこと
 
 - 標準Editor Tabs内部の直接変更
+- 独自Close button / middle-click close
 - IDE標準タブのPin状態の取得・変更
 - Drag & Dropによるタブ並べ替え
+- 独自Context Menu / Close Others / Close Group
 - 任意のユーザー定義グループ
 - Git branch / module / packageによるグループ化
 - PSIを使った意味的な分類
+- 独自Keyboard Shortcut体系
 - AI機能
 - ファイル解析
 - 標準Editor Tabsの設定をプラグイン側から強制変更
@@ -153,16 +195,52 @@ UIはEditor上部へ追加する。
 - 選択中ファイルが属するグループを active 表示
 - 表示名は Minimal Unique Path
 - Tooltip はフルパス
-- 長い名前はUIコンポーネント側で省略可能
+- 常に1行表示とし、折り返さない
+- 長い名前は省略表示してよいがTooltipからfull pathへ到達できること
 - グループ数が幅を超えた場合は overflow UI を使用する
+- active Groupは可能な限り常に可視領域へ自動調整する
 
 ### File Tabs
 
 - active group 直下の開いているファイルだけを表示
 - ファイル名を表示
 - 選択中ファイルを active 表示
+- 未保存変更があるファイルにはmodified indicatorを表示
 - Tooltip はフルパス
+- 常に1行表示とし、折り返さない
+- 幅を超えた場合はoverflow UIを使用する
+- active Fileは可能な限り常に可視領域へ自動調整する
 - 同一グループ内では親ディレクトリが同じため、通常はファイル名だけで一意になる
+
+### 4.1.1 Overflow仕様
+
+Directory Group Tabs / File Tabsともに複数行へwrapしない。Editorの縦領域をタブが過度に消費しないことを優先する。
+
+```text
+[ users ] [ orders ] [ products ] [...] [∨]
+
+controller.go | service.go | [...] [∨]
+```
+
+overflow UIは少なくとも次を満たす。
+
+- 隠れている全Group / Fileを一覧から選択できる
+- active itemを識別できる
+- 項目選択時の挙動は通常タブクリックと同一
+- 名前が省略されてもfull pathを確認できる
+
+### 4.1.2 Modified表示
+
+未保存変更のあるFile Tabには、IDEのThemeに追従するmodified indicatorを表示する。
+
+```text
+controller.go | ● model.go | service.go
+                  modified
+```
+
+独自の固定色には依存しない。modified状態の取得には、実装時点でStable PublicであるAPIだけを使用する。
+
+2026.2時点では `FileDocumentManager.isFileModified(VirtualFile)` が候補であり、実装時にannotationとPlugin Verifierで再確認する。
 
 ---
 
@@ -464,6 +542,15 @@ IDE再起動時は現在選択中ファイルとソート順から再構築す�
 - fileClosed
 - selectionChanged
 
+対象ファイルは原則として `FileEditorManager.getOpenFiles()` が返すうち、次を満たすものとする。
+
+```text
+file.isValid
+&& !file.isDirectory
+```
+
+拡張子、言語、FileTypeによる除外は行わない。Java / Kotlin / Go / JSON / Markdown / image等をFolder Tabs側で特別扱いしない。
+
 イベント受信後、個別差分を複雑に管理するのではなく、**現在のopen filesから表示Modelを再構築する方式**を基本とする。
 
 ```text
@@ -488,11 +575,23 @@ open file数は通常限定的であり、差分更新より完全再構築の�
 
 ---
 
-## 10. Rename / Move対応
+## 10. Rename / Move / Delete対応
 
-開いているファイルまたは親ディレクトリがrename / moveされた場合に、グループ名と所属先を更新する。
+開いているファイルまたは親ディレクトリがrename / move / deleteされた場合に、グループ名と所属先を更新する。
 
-`VirtualFileManager.VFS_CHANGES` の公開Topicを購読し、関連するVFS変更後にModelを再構築する。
+`VirtualFileManager.VFS_CHANGES` の公開Topicを購読するが、すべてのVFS変更でModelを再構築してはならない。
+
+Group構造に影響する次のイベントだけを基本対象とする。
+
+- rename
+- move
+- delete
+
+通常のファイル内容変更だけではGroup Modelを再構築しない。
+
+さらに、現在openしているファイルまたはその親ディレクトリに関係する変更だけをrefresh対象とする。Git checkoutやbuildによる大量VFS eventにFolder Tabsが無条件で追従しないようにする。
+
+複数イベントは短時間にまとめてcoalesceする。初期値の目安は100ms程度とし、実測で調整する。
 
 例:
 
@@ -605,11 +704,25 @@ Project Group Model
 
 各Headerのactive fileは、そのHeaderが属するEditorの表示ファイルを優先する。
 
-Group/File Tabをクリックした場合は、ユーザーが現在操作しているEditor領域へファイルを開くことを基本挙動とする。
+Group/File Tabをクリックした場合は、ユーザーが操作したHeader側のEditor領域へファイルを開くことを理想挙動とする。
+
+Stable Public APIだけでpaneを明示指定できない場合は、対象Header側へfocusを移してから標準 `openFile()` を呼び、以降のpane選択はIDE標準挙動へ委ねる。
 
 Split制御のために `FileEditorManagerEx` / `EditorWindow` は使用しない。
 
-Stable Public APIだけで現在splitへの確実なopenが保証できないケースでは、IDE標準のopen挙動をそのまま採用する。
+Stable Public APIだけで現在splitへの確実なopenが保証できないケースでは、IDE標準のopen挙動をそのまま採用する。この制約を解消するためにInternal APIへfallbackしてはならない。
+
+### 13.1 v0.1着手時のSplit / Tabless PoC
+
+本実装を広げる前に、v0.1の最初の技術検証として次を確認する。
+
+1. 通常EditorへHeaderを安全に追加・削除できる
+2. `Tab placement: None` でも `getOpenFiles()` が期待する集合を返す
+3. Split左右それぞれでHeaderが正常に存在する
+4. Header側を操作して標準 `openFile()` を呼んだ際のpane挙動を確認できる
+5. file open / close / selection eventがTabless + Splitでも欠落しない
+
+この検証は新しいリリースフェーズを増やすものではなく、v0.1 Coreの最初のgateとする。
 
 ---
 
@@ -639,26 +752,20 @@ Scratch、設定ファイル、外部ファイルなど、Project Base Directory
 
 ## 15. Close操作
 
-File TabにはClose操作を用意する。
+v1.0のFolder Tabsは **Navigation Only** とし、独自Close操作を実装しない。
 
-基本処理:
-
-```kotlin
-FileEditorManager.getInstance(project).closeFile(file)
-```
-
-注意:
-
-`closeFile()` は指定ファイルのEditorを閉じるため、同一ファイルを複数splitで開いている場合はIDE標準の「特定splitだけ閉じる」と完全には一致しない可能性がある。
-
-v1.0ではStable Public API優先のため、この挙動を仕様とする。
-
-対応UI:
+File Tabには次を置かない。
 
 - Close button
 - Middle click close
+- Close Others
+- Close Group
 
-Group単位の `Close Group` はv1.0候補に含めるが、MVPには必須としない。
+理由は、`FileEditorManager.closeFile(file)` のようなProject単位の操作では、同一ファイルを複数splitで開いている場合に「操作したpaneだけ閉じる」というIDE標準semanticsと一致しない可能性があるためである。
+
+ユーザーはIDE標準のClose Active Editor操作（例: `Ctrl/Cmd + W`）を使用する。
+
+将来、Stable Public APIだけでsplit-awareなclose semanticsを安全に実装できることが確認できた場合にのみ再検討する。
 
 ---
 
@@ -701,6 +808,7 @@ data class FileTabModel(
     val displayName: String,
     val fullPath: String,
     val selected: Boolean,
+    val modified: Boolean,
 )
 ```
 
@@ -761,17 +869,25 @@ Modelを受け取って描画するだけのUI層。
 
 ## 19. Refresh戦略
 
-イベントごとの複雑な差分処理は避ける。
+Group構造のイベントごとの複雑な差分処理は避ける。
 
 ```text
-multiple events
+relevant open/close/VFS events
     ↓
 requestRefresh
     ↓
-1回にcoalesce
+短時間にcoalesce
     ↓
 full snapshot rebuild
 ```
+
+ただし、すべてのイベントをfull rebuildへ流さない。
+
+- file open / close → full snapshot rebuild
+- rename / move / delete → 関連対象ならfull snapshot rebuild
+- selection change → active state中心の更新。必要に応じてModel再投影
+- document modified state change → 対象File Tabのmodified表示だけを更新
+- 通常のcontent/VFS change → Group構造refreshを行わない
 
 EDTを長時間占有しないこと。
 
@@ -808,9 +924,17 @@ UI componentはEditorのclose/disposeで確実に解除する。
 
 v1.0の設定項目は最小限にする。
 
+設定は **Application-level** とし、Projectごとに同じON/OFFを繰り返し設定させない。
+
 ### 必須
 
-- Enable Directory Grouped Tabs: ON/OFF
+- Enable Folder Tabs: ON/OFF
+  - 初期値: ON
+  - Application-levelで永続化
+
+Folder TabsをOFFにした場合は、追加済みHeaderを安全に解除し、IDE標準Editorだけの状態へ戻す。
+
+プラグインは `Tab placement` を自動変更しない。
 
 ### v1.0では固定値
 
@@ -842,6 +966,10 @@ v1.0の設定項目は最小限にする。
 | split editor | Project Model共有。各Headerは個別同期 |
 | preview tab | open fileとして観測できる範囲で通常扱い |
 | pinned tab | 表示・操作しない |
+| modified file | File Tabにmodified indicatorを表示 |
+| binary / image file | open fileとして観測でき、valid/non-directoryなら通常扱い |
+| Group/File overflow | 1行固定。overflow UIから全項目へ到達可能 |
+| Close操作 | Folder Tabs独自UIでは提供しない。IDE標準操作を使用 |
 | Light/Dark切替 | JetBrains UI component/themeに追従 |
 
 ---
@@ -916,6 +1044,9 @@ moduleB/src/main/users
 - directory rename
 - file move
 - project closeでlistener/panel解放
+- modified状態変更でindicator更新
+- 通常のcontent changeだけではGroup Modelを再構築しない
+- unrelated VFS eventではrefreshしない
 
 ### 24.3 Manual UI Test
 
@@ -925,6 +1056,9 @@ moduleB/src/main/users
 - 長いディレクトリ名
 - 10+ groups
 - 20+ files in one group
+- Group / File overflowから全項目へ到達
+- active itemがoverflow時も識別・到達可能
+- modified indicator
 - Editor split
 - Tab placement: Top
 - Tab placement: None
@@ -952,9 +1086,16 @@ Plugin Verifier / IntelliJ Platform Gradle Plugin の名称変更があった場
 
 #### 対応IDE方針
 
-v1.0の最小対応基準は **IntelliJ Platform / IntelliJ IDEA 2026.2 系**とする。
+v1.0の対応範囲は **IntelliJ Platform / IntelliJ IDEA 2026.2 系**に限定する。
 
-新規プラグインであるため、2024.x / 2025.x への後方互換のためだけに旧APIを導入しない。対応範囲を広げる場合もStable Public API Onlyを維持できることを条件とする。
+初期設定は原則として次とする。
+
+```text
+sinceBuild = 262
+untilBuild = 262.*
+```
+
+新規プラグインであるため、2024.x / 2025.x への後方互換のためだけに旧APIを導入しない。2026.3以降への対応はPlugin Verifierと実機確認後に明示的に広げる。対応範囲を広げる場合もStable Public API Onlyを維持できることを条件とする。
 
 CIでは最低限、次を検証する。
 
@@ -972,9 +1113,10 @@ CIでは最低限、次を検証する。
 
 ### v0.1 - Core
 
+- Split / Tabless PoCを最初のgateとして実施
 - Project Service
 - `FileEditorManagerListener`
-- open files snapshot
+- open files snapshot（valid / non-directory）
 - parent directory grouping
 - Minimal Unique Path
 - deterministic sort
@@ -996,32 +1138,36 @@ controller.go | model.go | service.go
 
 ### v0.5 - Sync & UX
 
-- file close
-- middle click close
-- VFS rename / move追従
-- overflow
-- tooltip
+- open / close / selection同期の安定化
+- VFS rename / move / delete追従
+- unrelated/content-only VFS eventのfilter
+- modified indicator
+- 1行固定overflow
+- full path tooltip
+- active item visibility
 - split editor確認
 - Tab placement None確認
-- Light/Dark theme確認
+- Light/Dark theme / UI scale確認
 
 **完了条件**:
 
 通常利用で標準Editor Tabsの代替ナビゲーションとして使える。
 
-### v1.0 - Stabilization
+### v1.0 - Usability & Stabilization
 
-- Settings ON/OFF
+- Application-level Settings ON/OFF（default ON）
 - lifecycle/dispose精査
 - edge case対応
 - UI polish
 - accessibility確認
+- v1.0 Usability Review
+- 必要と判断した小規模UX改善の取り込み
 - Plugin Verifier
 - Marketplace用metadata/documentation
 
 **完了条件**:
 
-Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契約違反0件、主要操作でUI同期の破綻なし。
+Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契約違反0件、主要操作でUI同期の破綻なし。さらに、標準タブを非表示にした状態でも「日常的なファイル切替UIとして使いたい」と判断できる完成度に達していること。
 
 ---
 
@@ -1049,13 +1195,24 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 - [ ] selection変更に追従
 - [ ] renameに追従
 - [ ] moveに追従
+- [ ] deleteに追従
+- [ ] modified状態変更に追従
+- [ ] unrelated/content-only VFS eventで不要なGroup rebuildをしない
 
-### UI
+### UI / Usability
 
 - [ ] Editor上部へ表示される
 - [ ] Light/Darkで視認性に問題がない
+- [ ] UI scale変更で破綻しない
 - [ ] 長いlabelでレイアウト崩壊しない
+- [ ] Directory Group / File Tabsが複数行へwrapしない
 - [ ] overflow時も全Group/Fileへ到達できる
+- [ ] active Group / Fileを常に識別できる
+- [ ] modified fileを識別できる
+- [ ] full pathをTooltipから確認できる
+- [ ] 標準Editor Tabsを残した状態でも利用できる
+- [ ] Tab placement Noneでも利用できる
+- [ ] v1.0 Usability Reviewで日常利用を妨げる重大な不足が残っていない
 
 ### Safety / API Stability
 
@@ -1080,6 +1237,7 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 ```text
 com.intellij.openapi.fileEditor.FileEditorManager
 com.intellij.openapi.fileEditor.FileEditorManagerListener
+com.intellij.openapi.fileEditor.FileDocumentManager
 com.intellij.openapi.fileEditor.FileEditor
 com.intellij.openapi.vfs.VirtualFile
 com.intellij.openapi.vfs.VirtualFileManager
@@ -1094,13 +1252,13 @@ com.intellij.ui.tabs.JBTabsFactory
 FileEditorManager.getInstance(project)
 FileEditorManager.getOpenFiles()
 FileEditorManager.openFile(...)
-FileEditorManager.closeFile(...)
 FileEditorManager.addTopComponent(...)
 FileEditorManager.removeTopComponent(...)
 FileEditorManagerListener.FILE_EDITOR_MANAGER
 FileEditorManagerListener.fileOpened(...)
 FileEditorManagerListener.fileClosed(...)
 FileEditorManagerListener.selectionChanged(...)
+FileDocumentManager.isFileModified(...)
 JBTabsFactory.createEditorTabs(project, parentDisposable)
 ```
 
@@ -1228,3 +1386,5 @@ huga/users  → [ huga/users ]
 ```
 
 これを本プラグインの中核仕様として固定する。
+
+v1.0はこの中核仕様に加え、modified表示、overflow、Last Active File、Tooltip、rename/move/delete同期、Split/Tabless対応、Application-level ON/OFFまでを揃え、**単なるPoCではなく日常利用可能なEditor navigation replacement**として公開する。
