@@ -8,7 +8,10 @@ import com.intellij.ui.tabs.JBTabs
 import com.intellij.ui.tabs.JBTabsFactory
 import com.intellij.ui.tabs.TabInfo
 import com.intellij.ui.tabs.TabsListener
+import java.awt.AWTEvent
 import java.awt.Dimension
+import java.awt.Toolkit
+import java.awt.event.AWTEventListener
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.Icon
@@ -27,13 +30,17 @@ import javax.swing.Timer
  * Rendering is diff-based: when the key sequence is unchanged the existing [TabInfo]s are
  * updated in place. Rebuilding tabs while JBTabs' own drag is in progress would pull the
  * dragged TabInfo from under it (NPE in SingleRowLayout), so a rebuild that arrives while the
- * mouse is down is deferred until release.
+ * mouse is down is deferred until the button is actually released. The release is observed
+ * application-wide (JBTabs' drag routes it through the glass pane, not the tab label); a timer
+ * only steps in when no drag activity has been seen for [pointerIdleTimeoutMs], so a long drag
+ * never triggers a rebuild while the strip never stays frozen if a release got lost.
  */
 class TabStrip(
     project: Project,
     parentDisposable: Disposable,
     private val onSelect: (key: Any) -> Unit,
     private val onReorder: ((keysInNewOrder: List<Any>) -> Unit)? = null,
+    private val pointerIdleTimeoutMs: Int = POINTER_IDLE_TIMEOUT_MS,
 ) {
 
     data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
@@ -67,11 +74,22 @@ class TabStrip(
     private var pointerDown = false
     private var deferred: Pair<List<Item>, Any?>? = null
 
-    /** Safety net: a release delivered elsewhere (glass pane) must not leave the strip frozen. */
-    private val pointerTimeout = Timer(POINTER_TIMEOUT_MS) { onPointerUp() }.apply { isRepeats = false }
+    /** `System.nanoTime()` of the last MOUSE_DRAGGED seen while the pointer is down; `null` = none. */
+    private var lastDragNanos: Long? = null
+
+    /** Sees releases/drags wherever they land (glass pane, other windows); installed only while pressed. */
+    private val globalMouseListener = AWTEventListener { event ->
+        when ((event as? MouseEvent)?.id) {
+            MouseEvent.MOUSE_DRAGGED -> lastDragNanos = System.nanoTime()
+            MouseEvent.MOUSE_RELEASED -> onPointerUp()
+        }
+    }
+
+    /** Safety net for a lost release: fires after [pointerIdleTimeoutMs] without drag activity. */
+    private val pointerTimeout = Timer(pointerIdleTimeoutMs.coerceAtLeast(1)) { onPointerTimeout() }.apply { isRepeats = false }
 
     init {
-        Disposer.register(parentDisposable, Disposable { pointerTimeout.stop() })
+        Disposer.register(parentDisposable, Disposable { stopWatchingPointer() })
     }
 
     fun render(items: List<Item>, selectedKey: Any?) {
@@ -123,18 +141,37 @@ class TabStrip(
         .setObject(item.key)
 
     private fun onPointerDown() {
+        if (!pointerDown) {
+            Toolkit.getDefaultToolkit().addAWTEventListener(globalMouseListener, MOUSE_EVENT_MASKS)
+        }
         pointerDown = true
+        lastDragNanos = null
         pointerTimeout.restart()
     }
 
+    private fun onPointerTimeout() {
+        if (!pointerDown) return
+        val idleMs = lastDragNanos?.let { (System.nanoTime() - it) / NANOS_PER_MILLI } ?: Long.MAX_VALUE
+        if (idleMs < pointerIdleTimeoutMs) {
+            pointerTimeout.restart() // a drag is still in progress: keep waiting for the real release
+            return
+        }
+        onPointerUp()
+    }
+
     private fun onPointerUp() {
-        pointerTimeout.stop()
+        stopWatchingPointer()
         if (!pointerDown) return
         pointerDown = false
         deferred?.let { (items, selected) ->
             deferred = null
             rebuild(items, selected)
         }
+    }
+
+    private fun stopWatchingPointer() {
+        pointerTimeout.stop()
+        Toolkit.getDefaultToolkit().removeAWTEventListener(globalMouseListener)
     }
 
     /** Tabs are navigation only; the content area stays empty and takes no space. */
@@ -147,7 +184,12 @@ class TabStrip(
     /** Test hook: the live TabInfos, to prove in-place updates keep instances. */
     internal fun tabInfosForTest(): List<TabInfo> = tabs.tabs
 
+    /** Test hook: what the safety-net timer does when it fires. */
+    internal fun firePointerTimeoutForTest() = onPointerTimeout()
+
     private companion object {
-        const val POINTER_TIMEOUT_MS = 3_000
+        const val POINTER_IDLE_TIMEOUT_MS = 3_000
+        const val NANOS_PER_MILLI = 1_000_000L
+        const val MOUSE_EVENT_MASKS: Long = AWTEvent.MOUSE_EVENT_MASK or AWTEvent.MOUSE_MOTION_EVENT_MASK
     }
 }

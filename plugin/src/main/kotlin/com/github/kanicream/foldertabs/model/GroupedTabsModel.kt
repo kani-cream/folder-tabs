@@ -28,7 +28,18 @@ data class DirectoryGroupModel(
     val displayName: String,
     val fullPath: String,
     val files: List<FileTabModel>,
-)
+) {
+    /**
+     * Key under which the user-defined group order is persisted (design section 7.1): the
+     * directory URL, or [OTHER_ORDER_KEY] for the "Other" group so it can be reordered too.
+     */
+    val orderKey: String get() = directory?.url ?: OTHER_ORDER_KEY
+
+    companion object {
+        /** Synthetic order key of the "Other" group; not a valid VFS URL by design. */
+        const val OTHER_ORDER_KEY: String = "folder-tabs://other"
+    }
+}
 
 data class FileTabModel(
     val file: VirtualFile,

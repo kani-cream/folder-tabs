@@ -15,9 +15,12 @@ import com.intellij.ui.dsl.builder.panel
 /** `Settings > Tools > Folder Tabs` (design section 21). Application-level. */
 class FolderTabsConfigurable : BoundSearchableConfigurable(
     FolderTabsBundle.message("settings.display.name"),
-    HELP_TOPIC,
+    ID, // BoundSearchableConfigurable needs a non-null help topic string; getHelpTopic() below disables it
     ID,
 ) {
+
+    /** No plugin help pages exist, so the IDE must not offer a "?" link into a missing topic. */
+    override fun getHelpTopic(): String? = null
 
     override fun createPanel(): DialogPanel {
         val settings = FolderTabsSettings.getInstance()
@@ -55,6 +58,5 @@ class FolderTabsConfigurable : BoundSearchableConfigurable(
 
     companion object {
         const val ID: String = "com.github.kanicream.foldertabs.settings"
-        const val HELP_TOPIC: String = "folder.tabs.settings"
     }
 }
