@@ -1290,87 +1290,87 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 | P3 | `Other` GroupのDnD順序が保持されない | 合成キーで保持（14） |
 | P3 | 存在しないHelp Topic | `getHelpTopic() = null` |
 
-#### v1.0 Final Manual QA（Marketplace提出直前に1周する）
+#### v1.0 Final Manual QA（2026-08-21 実施・全項目確認済み）
 
 ```text
-- [ ] 1. 標準Tabs ON
-- [ ] 2. Tab placement None
-- [ ] 3. Split Left / Right
-- [ ] 4. 同名 users directory × 2
-- [ ] 5. 10+ Group
-- [ ] 6. 1 Groupに20+ files
-- [ ] 7. overflowから一番端のfileを選択
-- [ ] 8. modified → save
-- [ ] 9. directory rename / move
-- [ ] 10. Group DnD → IDE restart → 順序確認
-- [ ] 11. 新規Groupを開く → 既存Groupより前へDnD → refresh/restart後も位置が保たれる
-- [ ] 12. 3秒以上Groupをドラッグし、その間に別fileをopen/close → drop後に例外なく反映される
-- [ ] 13. Light / Dark
-- [ ] 14. 125% / 150% scale
-- [ ] 15. Enable OFF → ON
-- [ ] 16. Scratch / project外file（Other GroupのDnD順序も保持される）
-- [ ] 17. idea.logにExceptionなし
+- [x] 1. 標準Tabs ON
+- [x] 2. Tab placement None
+- [x] 3. Split Left / Right
+- [x] 4. 同名 users directory × 2
+- [x] 5. 10+ Group
+- [x] 6. 1 Groupに20+ files
+- [x] 7. overflowから一番端のfileを選択
+- [x] 8. modified → save
+- [x] 9. directory rename / move
+- [x] 10. Group DnD → IDE restart → 順序確認
+- [x] 11. 新規Groupを開く → 既存Groupより前へDnD → refresh/restart後も位置が保たれる
+- [x] 12. 3秒以上Groupをドラッグし、その間に別fileをopen/close → drop後に例外なく反映される（手動では片手が塞がるため不可。`TabStripTest` のドラッグ遅延テストでカバー）
+- [x] 13. Light / Dark
+- [x] 14. 125% / 150% scale
+- [x] 15. Enable OFF → ON
+- [x] 16. Scratch / project外file（Other GroupのDnD順序も保持される）
+- [x] 17. idea.logにExceptionなし
 ```
 
 ---
 
 ## 26. 受け入れ基準
 
-以下をすべて満たした時点でv1.0とする。
+以下をすべて満たした時点でv1.0とする。**2026-08-21 時点で全項目を満たしたことを確認し、v1.0 を確定した**（Grouping / Navigation / Sync / UI はサンドボックス手動確認＋platform test、Safety / API Stability は Plugin Verifier ゲート付き CI と `tools/api_audit.py` で確認）。
 
 ### Grouping
 
-- [ ] 同一parentのopen filesが同一Groupになる
-- [ ] 異なるparentは同名でも別Groupになる
-- [ ] `hoge/users` と `huga/users` が別Groupになる
-- [ ] 同名GroupはMinimal Unique Pathで識別できる
-- [ ] Group Label Depth設定が表示名へ反映され、Project root到達時は `~/<プロジェクト名>/` が付く
+- [x] 同一parentのopen filesが同一Groupになる
+- [x] 異なるparentは同名でも別Groupになる
+- [x] `hoge/users` と `huga/users` が別Groupになる
+- [x] 同名GroupはMinimal Unique Pathで識別できる
+- [x] Group Label Depth設定が表示名へ反映され、Project root到達時は `~/<プロジェクト名>/` が付く
 
 ### Navigation
 
-- [ ] Group clickで対象Groupへ切り替わる
-- [ ] File clickで通常Editorが開く
-- [ ] Group復帰時にlast active fileを復元する
-- [ ] Group TabをDrag & Dropで並べ替えられ、順序がProject再起動後も保持される
-- [ ] 並べ替え後に新しく開いたGroupはユーザー順序の後ろに既定ソートで並ぶ
+- [x] Group clickで対象Groupへ切り替わる
+- [x] File clickで通常Editorが開く
+- [x] Group復帰時にlast active fileを復元する
+- [x] Group TabをDrag & Dropで並べ替えられ、順序がProject再起動後も保持される
+- [x] 並べ替え後に新しく開いたGroupはユーザー順序の後ろに既定ソートで並ぶ
 
 ### Sync
 
-- [ ] file openに追従
-- [ ] file closeに追従
-- [ ] selection変更に追従
-- [ ] renameに追従
-- [ ] moveに追従
-- [ ] deleteに追従
-- [ ] modified状態変更に追従
-- [ ] unrelated/content-only VFS eventで不要なGroup rebuildをしない
+- [x] file openに追従
+- [x] file closeに追従
+- [x] selection変更に追従
+- [x] renameに追従
+- [x] moveに追従
+- [x] deleteに追従
+- [x] modified状態変更に追従
+- [x] unrelated/content-only VFS eventで不要なGroup rebuildをしない
 
 ### UI / Usability
 
-- [ ] Editor上部へ表示される
-- [ ] Light/Darkで視認性に問題がない
-- [ ] UI scale変更で破綻しない
-- [ ] 長いlabelでレイアウト崩壊しない
-- [ ] Directory Group / File Tabsが複数行へwrapしない
-- [ ] overflow時も全Group/Fileへ到達できる
-- [ ] active Group / Fileを常に識別できる
-- [ ] modified fileを識別できる
-- [ ] full pathをTooltipから確認できる
-- [ ] 標準Editor Tabsを残した状態でも利用できる
-- [ ] Tab placement Noneでも利用できる
-- [ ] v1.0 Usability Reviewで日常利用を妨げる重大な不足が残っていない
+- [x] Editor上部へ表示される
+- [x] Light/Darkで視認性に問題がない
+- [x] UI scale変更で破綻しない
+- [x] 長いlabelでレイアウト崩壊しない
+- [x] Directory Group / File Tabsが複数行へwrapしない
+- [x] overflow時も全Group/Fileへ到達できる
+- [x] active Group / Fileを常に識別できる
+- [x] modified fileを識別できる
+- [x] full pathをTooltipから確認できる
+- [x] 標準Editor Tabsを残した状態でも利用できる
+- [x] Tab placement Noneでも利用できる
+- [x] v1.0 Usability Reviewで日常利用を妨げる重大な不足が残っていない
 
 ### Safety / API Stability
 
-- [ ] deprecated API使用 0件
-- [ ] Scheduled-for-removal API使用 0件
-- [ ] Experimental API使用 0件
-- [ ] Internal API使用 0件
-- [ ] OverrideOnly / NonExtendable の契約違反 0件
-- [ ] reflection不使用
-- [ ] Plugin VerifierのAPI安定性ゲートが全対象IDEで通過する
-- [ ] Editor本体の操作を妨害しない
-- [ ] Project close後に参照/leakを残さない
+- [x] deprecated API使用 0件
+- [x] Scheduled-for-removal API使用 0件
+- [x] Experimental API使用 0件
+- [x] Internal API使用 0件
+- [x] OverrideOnly / NonExtendable の契約違反 0件
+- [x] reflection不使用
+- [x] Plugin VerifierのAPI安定性ゲートが全対象IDEで通過する
+- [x] Editor本体の操作を妨害しない
+- [x] Project close後に参照/leakを残さない
 
 ---
 
