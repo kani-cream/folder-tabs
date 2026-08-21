@@ -17,7 +17,7 @@ import com.intellij.openapi.vfs.VirtualFile
 class DirectoryGroupBuilder(
     private val projectBasePath: String?,
     private val labelPolicy: GroupLabelPolicy,
-    /** User-defined group order, directory URLs leftmost first (design section 7.1). */
+    /** User-defined group order, [DirectoryGroupModel.orderKey]s leftmost first (design section 7.1). */
     private val savedGroupOrder: List<String> = emptyList(),
     private val isModified: (VirtualFile) -> Boolean = { FileDocumentManager.getInstance().isFileModified(it) },
 ) {
@@ -38,7 +38,7 @@ class DirectoryGroupBuilder(
             )
         }.sortedWith(GROUP_ORDER)
 
-        return GroupedTabsModel(GroupOrder.sort(groups, { it.directory?.url }, savedGroupOrder))
+        return GroupedTabsModel(GroupOrder.sort(groups, { it.orderKey }, savedGroupOrder))
     }
 
     private fun resolveDisplayNames(directories: Set<VirtualFile?>): Map<VirtualFile?, String> {

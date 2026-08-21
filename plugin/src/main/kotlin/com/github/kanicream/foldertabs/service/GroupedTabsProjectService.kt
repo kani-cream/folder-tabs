@@ -153,9 +153,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     }
 
     override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) {
-        val urls = groupsInNewOrder.mapNotNull { it.directory?.url }
-        if (urls.isEmpty()) return
-        GroupOrderState.getInstance(project).update { GroupOrder.applyReorder(it, urls) }
+        val keys = groupsInNewOrder.map { it.orderKey }
+        if (keys.isEmpty()) return
+        GroupOrderState.getInstance(project).update { GroupOrder.applyReorder(it, keys) }
         requestRefresh()
     }
 

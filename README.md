@@ -36,7 +36,10 @@ Folder Tabs your main tab UI.
 
 ## Requirements
 
-IntelliJ IDEA 2026.2 or later (any JetBrains IDE on the 2026.2 platform).
+IntelliJ IDEA 2026.2.x (plugin builds `262.*`). The plugin depends only on
+`com.intellij.modules.platform`, so other JetBrains IDEs on the 2026.2 platform should
+work, but only IntelliJ IDEA is verified. Newer platform versions are enabled after the
+Plugin Verifier and a manual check pass.
 
 ## Settings
 
