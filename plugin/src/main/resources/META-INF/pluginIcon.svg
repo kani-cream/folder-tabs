@@ -1,0 +1,11 @@
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <!-- Folder Tabs: a folder whose tab row carries a second, smaller row of file tabs.
+       Family palette shared with Repo Lens / Flow Lens / Settings Jump (#3B5BDB / #F59E0B). -->
+  <path d="M5 11.5 C5 10.1 6.1 9 7.5 9 H15 l3 3 H32.5 C33.9 12 35 13.1 35 14.5 V30.5 C35 31.9 33.9 33 32.5 33 H7.5 C6.1 33 5 31.9 5 30.5 Z" fill="none" stroke="#3B5BDB" stroke-width="2.6" stroke-linejoin="round"/>
+  <rect x="9" y="17" width="7.5" height="4" rx="1" fill="#F59E0B"/>
+  <rect x="18.5" y="17" width="5.5" height="4" rx="1" fill="#3B5BDB" opacity="0.55"/>
+  <rect x="26" y="17" width="5" height="4" rx="1" fill="#3B5BDB" opacity="0.55"/>
+  <rect x="9" y="24" width="5" height="3.2" rx="0.9" fill="#3B5BDB" opacity="0.55"/>
+  <rect x="16" y="24" width="5" height="3.2" rx="0.9" fill="#3B5BDB" opacity="0.55"/>
+  <rect x="23" y="24" width="5" height="3.2" rx="0.9" fill="#F59E0B"/>
+</svg>

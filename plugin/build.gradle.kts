@@ -51,6 +51,17 @@ intellijPlatform {
         id = "com.github.kanicream.foldertabs"
         name = "Folder Tabs"
         version = project.version.toString()
+        changeNotes = """
+            <b>1.0.0</b>
+            <ul>
+              <li>Two-row header above every editor: directory groups on top, files of the selected group below.</li>
+              <li>Group label depth setting (default 2); same-name directories always get a distinguishing path;
+                  labels reaching the project root read <code>~/&lt;project&gt;/…</code>.</li>
+              <li>Drag &amp; drop to reorder group tabs; order is remembered per project.</li>
+              <li>Follows rename / move / delete, shows a modified marker, file type icons, full-path tooltips.</li>
+              <li>Works with split editors and with <i>Tab placement: None</i>; can be turned off in Settings &gt; Tools &gt; Folder Tabs.</li>
+            </ul>
+        """.trimIndent()
         vendor {
             name = "kani-cream"
             url = "https://github.com/kani-cream/folder-tabs"
