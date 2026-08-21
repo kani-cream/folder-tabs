@@ -1,0 +1,63 @@
+package com.github.kanicream.foldertabs.grouping
+
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.testFramework.LightVirtualFile
+import com.intellij.testFramework.fixtures.BasePlatformTestCase
+
+/** Design section 24.1: grouping by immediate parent on a real (temp) VFS. */
+class DirectoryGroupBuilderTest : BasePlatformTestCase() {
+
+    private fun file(path: String): VirtualFile = myFixture.addFileToProject(path, "").virtualFile
+
+    private fun builder() = DirectoryGroupBuilder(projectBasePath = null, isModified = { false })
+
+    fun testSameParentFilesShareOneGroup() {
+        val model = builder().build(listOf(file("users/a.go"), file("users/b.go")))
+        assertEquals(1, model.groups.size)
+        assertEquals(listOf("a.go", "b.go"), model.groups.single().files.map { it.displayName })
+    }
+
+    fun testDifferentParentsAreDifferentGroups() {
+        val model = builder().build(listOf(file("users/a.go"), file("orders/b.go")))
+        assertEquals(listOf("orders", "users"), model.groups.map { it.displayName })
+    }
+
+    fun testSameNameDirectoriesStaySeparateWithMinimalUniquePath() {
+        val model = builder().build(listOf(file("hoge/users/a.go"), file("huga/users/b.go")))
+        assertEquals(listOf("hoge/users", "huga/users"), model.groups.map { it.displayName })
+    }
+
+    fun testNestedDirectoryIsNotMergedIntoParent() {
+        val model = builder().build(listOf(file("users/controller.go"), file("users/dto/user.go")))
+        assertEquals(listOf("dto", "users"), model.groups.map { it.displayName })
+    }
+
+    fun testFilesSortNaturally() {
+        val model = builder().build(listOf(file("x/file10.go"), file("x/file9.go"), file("x/file2.go")))
+        assertEquals(listOf("file2.go", "file9.go", "file10.go"), model.groups.single().files.map { it.displayName })
+    }
+
+    fun testParentlessFileFallsIntoOtherGroup() {
+        val model = builder().build(listOf(LightVirtualFile("scratch.txt")))
+        val group = model.groups.single()
+        assertNull(group.directory)
+        assertEquals(MinimalUniquePathResolver.FALLBACK_NAME, group.displayName)
+    }
+
+    fun testDirectoriesAndDuplicatesAreIgnored() {
+        val f = file("users/a.go")
+        val model = builder().build(listOf(f, f, f.parent))
+        assertEquals(1, model.groups.single().files.size)
+    }
+
+    fun testEmptyInputGivesEmptyModel() {
+        assertTrue(builder().build(emptyList()).groups.isEmpty())
+    }
+
+    fun testGroupOfFindsContainingGroup() {
+        val a = file("users/a.go")
+        val model = builder().build(listOf(a, file("orders/b.go")))
+        assertEquals("users", model.groupOf(a)?.displayName)
+        assertNull(model.groupOf(null))
+    }
+}
