@@ -1,0 +1,38 @@
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+.kotlin/
+
+# IntelliJ Platform Gradle Plugin
+.intellijPlatform/
+**/.intellijPlatform/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Local environment
+local.properties
+gradle.properties.local
+.env
+.env.*
+
+# Kotlin / JVM
+*.class
+*.log
+*.hprof
+hs_err_pid*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+*.swp
+*~
