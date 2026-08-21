@@ -4,6 +4,7 @@ import com.github.kanicream.foldertabs.editor.EditorHeaderRegistry
 import com.github.kanicream.foldertabs.grouping.DirectoryGroupBuilder
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
+import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.github.kanicream.foldertabs.ui.FolderTabsNavigator
 import com.github.kanicream.foldertabs.ui.GroupedTabsPanel
 import com.intellij.openapi.Disposable
@@ -89,7 +90,8 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     fun refreshNow() {
         if (project.isDisposed) return
         pruneStaleHeaders()
-        model = DirectoryGroupBuilder(project.basePath).build(editorManager().openFiles.toList())
+        val policy = FolderTabsSettings.getInstance().labelPolicy(project.name)
+        model = DirectoryGroupBuilder(project.basePath, policy).build(editorManager().openFiles.toList())
         registry.all().forEach { (editor, panel) ->
             runCatching { panel.render(model) }
                 .onFailure { log.warn("Folder Tabs: header render failed for ${editor.file}", it) }

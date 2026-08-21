@@ -1,5 +1,6 @@
 package com.github.kanicream.foldertabs.service
 
+import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -8,6 +9,21 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
 
     private val service get() = GroupedTabsProjectService.getInstance(project)
+    private var savedDepth = 0
+
+    override fun setUp() {
+        super.setUp()
+        savedDepth = FolderTabsSettings.getInstance().groupLabelDepth
+        FolderTabsSettings.getInstance().groupLabelDepth = 1 // labels are plain directory names below
+    }
+
+    override fun tearDown() {
+        try {
+            FolderTabsSettings.getInstance().groupLabelDepth = savedDepth
+        } finally {
+            super.tearDown()
+        }
+    }
     private val editors get() = FileEditorManager.getInstance(project)
 
     private fun open(path: String) = myFixture.addFileToProject(path, "").virtualFile.also {

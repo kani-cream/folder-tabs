@@ -8,20 +8,23 @@ class DirectoryPathSegmentsTest {
     @Test
     fun `inside project is relative to base`() {
         assertEquals(
-            listOf("backend", "api", "users"),
+            DirectoryLabelSource(listOf("backend", "api", "users"), projectRelative = true),
             DirectoryPathSegments.of("/project/backend/api/users", "/project"),
         )
     }
 
     @Test
-    fun `project base itself keeps its own name`() {
-        assertEquals(listOf("project"), DirectoryPathSegments.of("/work/project", "/work/project"))
+    fun `project base itself is empty relative`() {
+        assertEquals(
+            DirectoryLabelSource(emptyList(), projectRelative = true),
+            DirectoryPathSegments.of("/work/project", "/work/project"),
+        )
     }
 
     @Test
     fun `outside project uses full path`() {
         assertEquals(
-            listOf("Users", "me", ".config", "foo"),
+            DirectoryLabelSource(listOf("Users", "me", ".config", "foo"), projectRelative = false),
             DirectoryPathSegments.of("/Users/me/.config/foo", "/project"),
         )
     }
@@ -29,18 +32,24 @@ class DirectoryPathSegmentsTest {
     @Test
     fun `sibling with base as prefix is not treated as inside`() {
         assertEquals(
-            listOf("work", "project-other", "src"),
+            DirectoryLabelSource(listOf("work", "project-other", "src"), projectRelative = false),
             DirectoryPathSegments.of("/work/project-other/src", "/work/project"),
         )
     }
 
     @Test
     fun `null base uses full path`() {
-        assertEquals(listOf("a", "b"), DirectoryPathSegments.of("/a/b", null))
+        assertEquals(
+            DirectoryLabelSource(listOf("a", "b"), projectRelative = false),
+            DirectoryPathSegments.of("/a/b", null),
+        )
     }
 
     @Test
     fun `trailing slash on base is tolerated`() {
-        assertEquals(listOf("src"), DirectoryPathSegments.of("/p/src", "/p/"))
+        assertEquals(
+            DirectoryLabelSource(listOf("src"), projectRelative = true),
+            DirectoryPathSegments.of("/p/src", "/p/"),
+        )
     }
 }

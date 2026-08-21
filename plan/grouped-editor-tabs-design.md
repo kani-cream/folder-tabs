@@ -1,6 +1,6 @@
 # Directory Grouped Editor Tabs - 設計書
 
-- **文書状態**: Draft v0.3
+- **文書状態**: Draft v0.4
 - **作成日**: 2026-08-21
 - **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
 - **関連要望**: IJPL-186183
@@ -138,6 +138,7 @@ huga/users
 - 下段に選択中グループのFile Tabsを表示
 - 同名ディレクトリを別グループとして保持
 - 同名ディレクトリはMinimal Unique Pathで表示
+- Group表示名の階層数（Group Label Depth）をApplication-level設定で選択可能にし、初期値は2階層とする
 - Group / File Tabsを1行固定で表示し、収まらない項目はoverflowから必ず到達可能にする
 - active Group / Fileは常に視認できる状態へ自動調整する
 - Group / FileのTooltipにfull pathを表示
@@ -447,6 +448,45 @@ api/users
 Windowsでも `api\users` にはしない。
 
 TooltipではIDEが提供する presentable path をそのまま利用してよい。
+
+### 6.5 Group Label Depth
+
+1階層だけの表示（例: `docs`）では、どのディレクトリを見ているのか文脈が分からない場合がある。そこでGroup表示名に含める階層数を **Group Label Depth** としてApplication-levelで設定可能にする。
+
+```text
+Group Label Depth: 1 / 2 / 3 / 4 / 5 / Project root
+初期値: 2
+```
+
+プロジェクト `stock-oracle` 内の `src/main/users` の表示例:
+
+| Depth | 表示 |
+|---|---|
+| 1 | `users` |
+| 2 | `main/users` |
+| 3 | `src/main/users` |
+| Project root | `~/stock-oracle/src/main/users` |
+
+規則:
+
+- Depthは **下限** である。設定Depthで表示しても同名衝突が残る場合は、Minimal Unique Pathのアルゴリズムでさらに親階層を追加する。同名ディレクトリを必ず区別するという中核仕様は維持する
+- 表示がプロジェクトルートまで到達した場合（Depthがプロジェクト基準の階層数以上、または `Project root` 選択時）は、`~/<プロジェクトフォルダ名>/` を先頭に付ける。`~/` はホームディレクトリではなく「プロジェクトルート起点」を表す表示上の記号であり、プロジェクトフォルダ名を必ず後続させる
+- プロジェクトルートディレクトリ自体のGroupは `~/<プロジェクトフォルダ名>` と表示する
+- プロジェクト外ファイルには `~/` を付けず、presentable path の末尾からDepth分の階層を表示する
+- Tooltipは従来どおりフルパス
+- 設定変更は開いている全ProjectのHeaderへ即時反映する
+
+擬似コード:
+
+```kotlin
+fun label(source: DirectoryLabelSource, depth: Int, projectName: String): String {
+    val segments = source.segments              // project-relative or absolute, root-first
+    if (source.projectRelative && depth >= segments.size) {
+        return (listOf("~", projectName) + segments).joinToString("/")
+    }
+    return segments.takeLast(depth).joinToString("/")
+}
+```
 
 ---
 
@@ -931,6 +971,10 @@ v1.0の設定項目は最小限にする。
 - Enable Folder Tabs: ON/OFF
   - 初期値: ON
   - Application-levelで永続化
+- Group Label Depth: 1 / 2 / 3 / 4 / 5 / Project root
+  - 初期値: 2
+  - Application-levelで永続化
+  - 詳細は6.5
 
 Folder TabsをOFFにした場合は、追加済みHeaderを安全に解除し、IDE標準Editorだけの状態へ戻す。
 
@@ -941,7 +985,7 @@ Folder TabsをOFFにした場合は、追加済みHeaderを安全に解除し、
 - Grouping: Immediate Parent Directory
 - Group sort: Alphabetical
 - File sort: Alphabetical
-- Duplicate group label: Minimal Unique Path
+- Duplicate group label: Minimal Unique Path（Group Label Depthを下限として適用）
 
 これらを最初から設定可能にしない。
 
@@ -1020,6 +1064,13 @@ moduleB/src/main/users
 ```
 
 プロジェクト外パスも含める。
+
+Group Label Depth:
+
+- depth 2 で `main/users`
+- depth がプロジェクト階層数以上で `~/project/src/main/users`
+- depth 2 でも衝突する `a/x/users` / `b/x/users` は3階層へ拡張
+- プロジェクト外パスには `~/` が付かない
 
 #### DirectoryGroupBuilder
 
@@ -1125,6 +1176,7 @@ CIでは最低限、次を検証する。
 - File Tabs
 - file selection
 - group selection + last active
+- Group Label Depth設定（Application-level、初期値2）と設定画面
 - basic unit tests
 
 **完了条件**:
@@ -1181,6 +1233,7 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 - [ ] 異なるparentは同名でも別Groupになる
 - [ ] `hoge/users` と `huga/users` が別Groupになる
 - [ ] 同名GroupはMinimal Unique Pathで識別できる
+- [ ] Group Label Depth設定が表示名へ反映され、Project root到達時は `~/<プロジェクト名>/` が付く
 
 ### Navigation
 

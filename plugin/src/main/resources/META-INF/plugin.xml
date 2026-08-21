@@ -18,8 +18,14 @@
 
     <depends>com.intellij.modules.platform</depends>
 
+    <resource-bundle>messages.FolderTabsBundle</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij">
         <postStartupActivity implementation="com.github.kanicream.foldertabs.editor.FolderTabsStartupActivity"/>
+        <applicationConfigurable parentId="tools"
+                                 id="com.github.kanicream.foldertabs.settings"
+                                 instance="com.github.kanicream.foldertabs.settings.FolderTabsConfigurable"
+                                 key="settings.display.name"/>
     </extensions>
 
     <projectListeners>

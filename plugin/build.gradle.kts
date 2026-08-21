@@ -39,12 +39,14 @@ tasks.test {
     }
 }
 
-intellijPlatform {
-    // No Configurable is contributed yet, so there are no searchable options to
-    // index (plan/github-actions-ci-design.md section 25). Re-enable when the
-    // Application-level Settings page lands in v1.0.
-    buildSearchableOptions = false
+tasks.buildSearchableOptions {
+    // The headless IDE that indexes searchable options requires the JVM default locale
+    // to be the IDE default (English); on a Japanese-locale machine it fails with
+    // "Locale must be default". Pin the forked JVM to English.
+    jvmArgs("-Duser.language=en", "-Duser.country=US")
+}
 
+intellijPlatform {
     pluginConfiguration {
         id = "com.github.kanicream.foldertabs"
         name = "Folder Tabs"
