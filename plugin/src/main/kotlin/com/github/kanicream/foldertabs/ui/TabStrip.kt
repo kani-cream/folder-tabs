@@ -8,6 +8,7 @@ import com.intellij.ui.tabs.JBTabsFactory
 import com.intellij.ui.tabs.TabInfo
 import com.intellij.ui.tabs.TabsListener
 import java.awt.Dimension
+import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -25,7 +26,7 @@ class TabStrip(
     private val onSelect: (key: Any) -> Unit,
 ) {
 
-    data class Item(val key: Any, val text: String, val tooltip: String)
+    data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
 
     private val tabs: JBTabs = JBTabsFactory.createEditorTabs(project, parentDisposable).apply {
         presentation
@@ -61,6 +62,7 @@ class TabStrip(
         TabInfo(emptyContent())
             .setText(item.text)
             .setTooltipText(HtmlChunk.text(item.tooltip))
+            .setIcon(item.icon)
             .setObject(item.key)
 
     /** Tabs are navigation only; the content area stays empty and takes no space. */

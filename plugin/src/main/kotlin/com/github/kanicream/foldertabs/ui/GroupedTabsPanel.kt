@@ -2,11 +2,15 @@ package com.github.kanicream.foldertabs.ui
 
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Iconable
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBPanel
+import com.intellij.util.IconUtil
 import java.awt.BorderLayout
+import javax.swing.Icon
 import javax.swing.JComponent
 
 /**
@@ -18,7 +22,7 @@ import javax.swing.JComponent
  * The header is a pure projection of the [GroupedTabsModel] handed to [render].
  */
 class GroupedTabsPanel(
-    project: Project,
+    private val project: Project,
     private val ownFile: VirtualFile,
     private val navigator: FolderTabsNavigator,
 ) : Disposable {
@@ -40,17 +44,21 @@ class GroupedTabsPanel(
         activeGroup = group
 
         groupTabs.render(
-            items = model.groups.map { TabStrip.Item(key = it, text = it.displayName, tooltip = it.fullPath) },
+            items = model.groups.map { TabStrip.Item(key = it, text = it.displayName, tooltip = it.fullPath, icon = AllIcons.Nodes.Folder) },
             selectedKey = group,
         )
         fileTabs.render(
-            items = group?.files.orEmpty().map { TabStrip.Item(key = it.file, text = it.displayName, tooltip = it.fullPath) },
+            items = group?.files.orEmpty().map { TabStrip.Item(key = it.file, text = it.displayName, tooltip = it.fullPath, icon = fileIcon(it.file)) },
             selectedKey = ownFile,
         )
         // Tabs were added after the header joined the editor: make the editor re-layout.
         component.revalidate()
         component.repaint()
     }
+
+    /** Same icon the standard editor tabs show: file type plus read-status overlays, resolved lazily. */
+    private fun fileIcon(file: VirtualFile): Icon? =
+        if (file.isValid) IconUtil.getIcon(file, Iconable.ICON_FLAG_READ_STATUS, project) else null
 
     private fun onGroupSelected(key: Any) {
         val group = key as? DirectoryGroupModel ?: return

@@ -193,6 +193,7 @@ UIはEditor上部へ追加する。
 ### Directory Group Tabs
 
 - 1グループ = 1つの親ディレクトリ
+- フォルダアイコンを左に表示する
 - 選択中ファイルが属するグループを active 表示
 - 表示名は Minimal Unique Path
 - Tooltip はフルパス
@@ -204,7 +205,7 @@ UIはEditor上部へ追加する。
 ### File Tabs
 
 - active group 直下の開いているファイルだけを表示
-- ファイル名を表示
+- ファイル名を表示し、標準Editor Tabsと同じファイルタイプアイコンを左に表示する（`IconUtil.getIcon`）
 - 選択中ファイルを active 表示
 - 未保存変更があるファイルにはmodified indicatorを表示
 - Tooltip はフルパス
