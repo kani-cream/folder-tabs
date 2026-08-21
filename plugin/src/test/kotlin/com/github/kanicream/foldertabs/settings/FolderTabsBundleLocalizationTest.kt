@@ -1,6 +1,7 @@
 package com.github.kanicream.foldertabs.settings
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,6 +32,21 @@ class FolderTabsBundleLocalizationTest {
             val value = ja.getString(key)
             assertTrue("$key is blank in ja", value.isNotBlank())
             assertNotEquals("$key is not translated in ja", en.getString(key), value)
+        }
+    }
+
+    /**
+     * Comments are rendered as HTML by the Settings UI, and `&` is the mnemonic marker in IDE
+     * bundles (`&lt;` would come out as ` lt;`), so comment texts must avoid `<`, `>` and `&`.
+     */
+    @Test
+    fun `comments contain no angle brackets or ampersands`() {
+        for (locale in listOf(Locale.ROOT, Locale.JAPANESE)) {
+            val bundle = load(locale)
+            for (key in bundle.keySet().filter { it.endsWith(".comment") }) {
+                val value = bundle.getString(key)
+                assertFalse("$key ($locale) must not contain < > or &: $value", value.any { it == '<' || it == '>' || it == '&' })
+            }
         }
     }
 
