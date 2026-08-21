@@ -4,6 +4,8 @@ Groups your open editor tabs by directory. A two-row header sits above every
 editor: the upper row lists the directories of the files you have open, the
 lower row lists the files of the selected directory.
 
+![Folder Tabs header above the editor: directory groups in the upper row, files of the selected group in the lower row](docs/images/folder-tabs-editor.png)
+
 ```
 [ 📁 api/users ]  [ 📁 api/orders ]  [ 📁 docs ]
 controller.go | *model.go | service.go
@@ -45,10 +47,18 @@ Plugin Verifier and a manual check pass.
 
 `Settings > Tools > Folder Tabs`
 
+![Settings > Tools > Folder Tabs](docs/images/settings.png)
+
 | Setting | Default | Meaning |
 |---|---|---|
 | Enable Folder Tabs | on | Show the header above every editor |
 | Group label depth | 2 | Path segments shown in a group tab (`Project root` = full path from the project root) |
+
+Group label depth `1` vs `2` for the same open files:
+
+| depth 1 | depth 2 |
+|---|---|
+| ![depth 1](docs/images/group-label-depth-1.png) | ![depth 2](docs/images/group-label-depth-2.png) |
 
 ## Not in scope (by design)
 
