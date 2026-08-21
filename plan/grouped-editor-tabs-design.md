@@ -1,6 +1,6 @@
 # Directory Grouped Editor Tabs - 設計書
 
-- **文書状態**: Draft v0.4
+- **文書状態**: Draft v0.5
 - **作成日**: 2026-08-21
 - **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
 - **関連要望**: IJPL-186183
@@ -139,6 +139,7 @@ huga/users
 - 同名ディレクトリを別グループとして保持
 - 同名ディレクトリはMinimal Unique Pathで表示
 - Group表示名の階層数（Group Label Depth）をApplication-level設定で選択可能にし、初期値は2階層とする
+- Directory Group TabsをDrag & Dropで任意の順序に並べ替え、Projectごとに順序を保持する（v0.5）
 - Group / File Tabsを1行固定で表示し、収まらない項目はoverflowから必ず到達可能にする
 - active Group / Fileは常に視認できる状態へ自動調整する
 - Group / FileのTooltipにfull pathを表示
@@ -160,7 +161,7 @@ huga/users
 - 標準Editor Tabs内部の直接変更
 - 独自Close button / middle-click close
 - IDE標準タブのPin状態の取得・変更
-- Drag & Dropによるタブ並べ替え
+- File TabsのDrag & Drop並べ替え（Group Tabsの並べ替えはv0.5で対応、7.1参照）
 - 独自Context Menu / Close Others / Close Group
 - 任意のユーザー定義グループ
 - Git branch / module / packageによるグループ化
@@ -497,9 +498,11 @@ v1.0では挙動を固定し、設定項目を増やしすぎない。
 
 ### Group Tabs
 
-Minimal Unique Path を自然順・大文字小文字非区別で昇順ソートする。
+既定では表示名（Group Label）を自然順・大文字小文字非区別で昇順ソートする。
 
 同値時はフルパスをtie-breakerにする。
+
+ユーザーがDrag & Dropで並べ替えたGroupは、7.1のユーザー順序が優先される。
 
 ### File Tabs
 
@@ -516,6 +519,40 @@ file10.go
 ```
 
 を期待順とする。
+
+### 7.1 Group Tabのユーザー並べ替え（v0.5）
+
+Directory Group TabsはDrag & Dropで任意の順序に並べ替えられる。実装はJBTabsの標準DnD（`JBTabsPresentation.setTabDraggingEnabled(true)` と `TabsListener.tabsMoved()`）を使用し、独自のDnD処理は書かない。
+
+#### 順序の保持
+
+- Project-levelの `PersistentStateComponent`（workspace file）に、ユーザーが並べ替えたGroupの順序を **ディレクトリのVFS URL のリスト** として保存する
+- 表示順は次の規則で決める
+  1. 保存済み順序に含まれるGroupを、その順序で先頭に並べる
+  2. 含まれないGroup（新しく開いたディレクトリ）は、その後ろに7の既定ソートで並べる
+- Groupが閉じられても順序エントリは残し、再度開いたときに同じ位置へ戻す。エントリ数は上限（目安200）を設け、古いものから削除する
+- ディレクトリのrename / moveでは順序エントリのURLを追従させる（10のVFS追従と同時に処理）。deleteではエントリを削除する
+- 並べ替えは1つのHeaderで行われても、Project内の全Headerへ同じ順序を反映する
+
+#### 並べ替えの発生
+
+```text
+tabsMoved (JBTabs)
+    ↓
+Headerの現在のタブ列からディレクトリ順序を読み取る
+    ↓
+GroupOrderStateを更新（新しい順序リストを作る）
+    ↓
+requestRefresh → 全Header再描画
+```
+
+`tabsMoved` はユーザー操作でのみ発火させる。`render` 中の `removeAllTabs` / `addTab` によるイベントは `syncing` で無視する。
+
+#### 制約
+
+- File TabsはDnD並べ替えの対象外（既定ソート固定）
+- 順序はApplication-levelではなくProject-levelとする（プロジェクトごとにディレクトリ構成が異なるため）
+- 「順序をリセット」操作はv0.5では提供しない。必要性が確認できた場合にv1.0 Usability Reviewで検討する
 
 ---
 
@@ -1099,6 +1136,7 @@ Group Label Depth:
 - modified状態変更でindicator更新
 - 通常のcontent changeだけではGroup Modelを再構築しない
 - unrelated VFS eventではrefreshしない
+- Group順序の保存 / 復元、rename追従、上限超過時の削除
 
 ### 24.3 Manual UI Test
 
@@ -1201,6 +1239,7 @@ controller.go | model.go | service.go
 - split editor確認
 - Tab placement None確認
 - Light/Dark theme / UI scale確認
+- Group TabのDrag & Drop並べ替えとProject-levelの順序保持（7.1）
 
 **完了条件**:
 
@@ -1241,6 +1280,8 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 - [ ] Group clickで対象Groupへ切り替わる
 - [ ] File clickで通常Editorが開く
 - [ ] Group復帰時にlast active fileを復元する
+- [ ] Group TabをDrag & Dropで並べ替えられ、順序がProject再起動後も保持される
+- [ ] 並べ替え後に新しく開いたGroupはユーザー順序の後ろに既定ソートで並ぶ
 
 ### Sync
 
