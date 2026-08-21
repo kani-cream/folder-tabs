@@ -1,6 +1,7 @@
 package com.github.kanicream.foldertabs.ui
 
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
+import com.github.kanicream.foldertabs.model.FileTabModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
@@ -27,7 +28,7 @@ class GroupedTabsPanel(
     private val navigator: FolderTabsNavigator,
 ) : Disposable {
 
-    private val groupTabs = TabStrip(project, this, onSelect = ::onGroupSelected)
+    private val groupTabs = TabStrip(project, this, onSelect = ::onGroupSelected, onReorder = ::onGroupsReordered)
     private val fileTabs = TabStrip(project, this, onSelect = ::onFileSelected)
 
     val component: JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
@@ -48,7 +49,7 @@ class GroupedTabsPanel(
             selectedKey = group,
         )
         fileTabs.render(
-            items = group?.files.orEmpty().map { TabStrip.Item(key = it.file, text = it.displayName, tooltip = it.fullPath, icon = fileIcon(it.file)) },
+            items = group?.files.orEmpty().map { TabStrip.Item(key = it.file, text = fileText(it), tooltip = it.fullPath, icon = fileIcon(it.file)) },
             selectedKey = ownFile,
         )
         // Tabs were added after the header joined the editor: make the editor re-layout.
@@ -56,14 +57,27 @@ class GroupedTabsPanel(
         component.repaint()
     }
 
+    /** Targeted update for the modified indicator (design section 19): no strip rebuild. */
+    fun updateModified(file: VirtualFile, modified: Boolean) {
+        val tab = activeGroup?.files?.firstOrNull { it.file == file } ?: return
+        fileTabs.updateText(file, fileText(tab.copy(modified = modified)))
+    }
+
     /** Same icon the standard editor tabs show: file type plus read-status overlays, resolved lazily. */
     private fun fileIcon(file: VirtualFile): Icon? =
         if (file.isValid) IconUtil.getIcon(file, Iconable.ICON_FLAG_READ_STATUS, project) else null
+
+    private fun fileText(tab: FileTabModel): String =
+        if (tab.modified) MODIFIED_PREFIX + tab.displayName else tab.displayName
 
     private fun onGroupSelected(key: Any) {
         val group = key as? DirectoryGroupModel ?: return
         if (group == activeGroup) return
         navigator.openGroup(group)
+    }
+
+    private fun onGroupsReordered(keys: List<Any>) {
+        navigator.reorderGroups(keys.filterIsInstance<DirectoryGroupModel>())
     }
 
     private fun onFileSelected(key: Any) {
@@ -74,5 +88,10 @@ class GroupedTabsPanel(
 
     override fun dispose() {
         // TabStrips are registered as children of this Disposable; nothing else to release.
+    }
+
+    companion object {
+        /** Same convention as the IDE's "Mark modified (*)" editor-tab option (design section 4.1.2). */
+        const val MODIFIED_PREFIX: String = "*"
     }
 }

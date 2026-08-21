@@ -3,6 +3,7 @@ package com.github.kanicream.foldertabs.grouping
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.FileTabModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
+import com.github.kanicream.foldertabs.order.GroupOrder
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.vfs.VirtualFile
 
@@ -16,6 +17,8 @@ import com.intellij.openapi.vfs.VirtualFile
 class DirectoryGroupBuilder(
     private val projectBasePath: String?,
     private val labelPolicy: GroupLabelPolicy,
+    /** User-defined group order, directory URLs leftmost first (design section 7.1). */
+    private val savedGroupOrder: List<String> = emptyList(),
     private val isModified: (VirtualFile) -> Boolean = { FileDocumentManager.getInstance().isFileModified(it) },
 ) {
 
@@ -35,7 +38,7 @@ class DirectoryGroupBuilder(
             )
         }.sortedWith(GROUP_ORDER)
 
-        return GroupedTabsModel(groups)
+        return GroupedTabsModel(GroupOrder.sort(groups, { it.directory?.url }, savedGroupOrder))
     }
 
     private fun resolveDisplayNames(directories: Set<VirtualFile?>): Map<VirtualFile?, String> {
