@@ -12,6 +12,11 @@ data class GroupedTabsModel(
     fun groupOf(file: VirtualFile?): DirectoryGroupModel? =
         file?.let { f -> groups.firstOrNull { g -> g.files.any { it.file == f } } }
 
+    /** Copy with the modified flag of [file] set to [modified] (design section 19, targeted update). */
+    fun withModified(file: VirtualFile, modified: Boolean): GroupedTabsModel = GroupedTabsModel(
+        groups.map { g -> g.copy(files = g.files.map { if (it.file == file) it.copy(modified = modified) else it }) },
+    )
+
     companion object {
         val EMPTY = GroupedTabsModel(emptyList())
     }
