@@ -7,6 +7,7 @@ import com.intellij.openapi.options.BoundSearchableConfigurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.SimpleListCellRenderer
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.bindItem
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
@@ -20,17 +21,17 @@ class FolderTabsConfigurable : BoundSearchableConfigurable(
 
     override fun createPanel(): DialogPanel {
         val settings = FolderTabsSettings.getInstance()
+        // Comments are row comments with word wrap: they start at the label column and re-flow with the
+        // panel width. A cell comment would sit in the second column with a fixed width and overflow.
         return panel {
             row {
                 checkBox(FolderTabsBundle.message("settings.enabled"))
                     .bindSelected({ settings.enabled }, { settings.enabled = it })
-                    .comment(FolderTabsBundle.message("settings.enabled.comment"))
-            }
+            }.rowComment(FolderTabsBundle.message("settings.enabled.comment"), MAX_LINE_LENGTH_WORD_WRAP)
             row(FolderTabsBundle.message("settings.group.label.depth")) {
                 comboBox(FolderTabsSettings.DEPTH_CHOICES, DepthRenderer())
                     .bindItem({ settings.groupLabelDepth }, { settings.groupLabelDepth = it ?: GroupLabelPolicy.DEFAULT_DEPTH })
-                    .comment(FolderTabsBundle.message("settings.group.label.depth.comment"))
-            }
+            }.rowComment(FolderTabsBundle.message("settings.group.label.depth.comment"), MAX_LINE_LENGTH_WORD_WRAP)
         }
     }
 
