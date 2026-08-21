@@ -17,13 +17,14 @@ import javax.swing.JPanel
  * (design section 11.3: created through [JBTabsFactory.createEditorTabs], never `new`).
  *
  * The strip is a pure view: [render] replaces its tabs from [Item]s and marks the selected
- * one; only a user-initiated selection change reaches [onSelect]. Programmatic selection
- * during [render] is suppressed via [syncing].
+ * one; only user-initiated selection changes / drags reach [onSelect] / [onReorder].
+ * Programmatic changes during [render] are suppressed via [syncing].
  */
 class TabStrip(
     project: Project,
     parentDisposable: Disposable,
     private val onSelect: (key: Any) -> Unit,
+    private val onReorder: ((keysInNewOrder: List<Any>) -> Unit)? = null,
 ) {
 
     data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
@@ -31,13 +32,18 @@ class TabStrip(
     private val tabs: JBTabs = JBTabsFactory.createEditorTabs(project, parentDisposable).apply {
         presentation
             .setSingleRow(true)
-            .setTabDraggingEnabled(false)
+            .setTabDraggingEnabled(onReorder != null) // design 7.1: JBTabs' own DnD, no custom handling
             .setPaintFocus(false)
             .setSupportsCompression(true)
         addListener(object : TabsListener {
             override fun selectionChanged(oldSelection: TabInfo?, newSelection: TabInfo?) {
                 if (syncing) return
                 newSelection?.`object`?.let(onSelect)
+            }
+
+            override fun tabsMoved() {
+                if (syncing) return
+                onReorder?.invoke(getTabs().mapNotNull { it.`object` })
             }
         }, parentDisposable)
     }
@@ -56,6 +62,11 @@ class TabStrip(
         } finally {
             syncing = false
         }
+    }
+
+    /** Cheap in-place update (used for the modified indicator) without rebuilding the strip. */
+    fun updateText(key: Any, text: String) {
+        tabs.tabs.firstOrNull { it.`object` == key }?.setText(text)
     }
 
     private fun toTabInfo(item: Item): TabInfo =
