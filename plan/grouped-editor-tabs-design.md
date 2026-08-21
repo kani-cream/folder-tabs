@@ -1,6 +1,6 @@
 # Directory Grouped Editor Tabs - 設計書
 
-- **文書状態**: Draft v0.5
+- **文書状態**: v1.0 Release Candidate（v0.6）
 - **作成日**: 2026-08-21
 - **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
 - **関連要望**: IJPL-186183
@@ -234,11 +234,11 @@ overflow UIは少なくとも次を満たす。
 
 ### 4.1.2 Modified表示
 
-未保存変更のあるFile Tabには、IDEのThemeに追従するmodified indicatorを表示する。
+未保存変更のあるFile Tabには、IDE標準の「Mark modified (*)」と同じ `*` 前置でmodified indicatorを表示する。
 
 ```text
-controller.go | ● model.go | service.go
-                  modified
+controller.go | *model.go | service.go
+                 modified
 ```
 
 独自の固定色には依存しない。modified状態の取得には、実装時点でStable PublicであるAPIだけを使用する。
@@ -1014,7 +1014,7 @@ v1.0の設定項目は最小限にする。
   - Application-levelで永続化
   - 詳細は6.5
 
-Folder TabsをOFFにした場合は、追加済みHeaderを安全に解除し、IDE標準Editorだけの状態へ戻す。
+Folder TabsをOFFにした場合は、追加済みHeaderを安全に解除し、IDE標準Editorだけの状態へ戻す。ONへ戻した場合は開いている全Editorへ再度Headerを追加する。OFFの間はopen / selection / VFSイベントでHeaderを追加しない。
 
 プラグインは `Tab placement` を自動変更しない。
 
