@@ -1,0 +1,29 @@
+<idea-plugin>
+    <id>com.github.kanicream.foldertabs</id>
+    <name>Folder Tabs</name>
+    <vendor url="https://github.com/kani-cream/folder-tabs">kani-cream</vendor>
+    <description><![CDATA[
+        Groups open editor tabs by their parent directory.
+        <p>
+        Adds a two-row header above the editor: the upper row lists the directories of the
+        files you have open, the lower row lists the files of the selected directory.
+        Directories with the same name are shown with the shortest path that tells them apart
+        (<code>api/users</code> vs <code>admin/users</code>).
+        </p>
+        <p>
+        Works with any file type, leaves the standard editor tabs untouched, and uses only
+        stable IntelliJ Platform APIs.
+        </p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="com.github.kanicream.foldertabs.editor.FolderTabsStartupActivity"/>
+    </extensions>
+
+    <projectListeners>
+        <listener class="com.github.kanicream.foldertabs.editor.FolderTabsEditorListener"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
+</idea-plugin>
