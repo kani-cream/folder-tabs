@@ -61,6 +61,25 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         assertEquals(0, service.headerCount)
     }
 
+    fun testDisablingRemovesHeadersAndEnablingRestoresThem() {
+        val settings = FolderTabsSettings.getInstance()
+        try {
+            open("users/a.go")
+            assertTrue(service.headerCount >= 1)
+            settings.enabled = false
+            service.applySettings()
+            assertEquals(0, service.headerCount)
+            open("orders/b.go") // no headers while disabled
+            assertEquals(0, service.headerCount)
+            settings.enabled = true
+            service.applySettings()
+            flush()
+            assertTrue(service.headerCount >= 2)
+        } finally {
+            settings.enabled = true
+        }
+    }
+
     fun testOpenGroupRestoresLastActiveFile() {
         val a = open("users/a.go")
         val c = open("users/c.go")

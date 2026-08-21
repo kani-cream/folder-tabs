@@ -10,7 +10,7 @@ import com.intellij.openapi.components.Storage
 /**
  * Application-level settings (design section 21). Persisted in `folderTabs.xml`.
  *
- * [State.groupLabelDepth] is the number of path segments shown in a group label
+ * [State.enabled] turns the whole feature on/off (default ON). [State.groupLabelDepth] is the number of path segments shown in a group label
  * (design section 6.5); [GroupLabelPolicy.PROJECT_ROOT_DEPTH] means "up to the project root".
  */
 @Service(Service.Level.APP)
@@ -18,10 +18,18 @@ import com.intellij.openapi.components.Storage
 class FolderTabsSettings : PersistentStateComponent<FolderTabsSettings.State> {
 
     data class State(
+        var enabled: Boolean = true,
         var groupLabelDepth: Int = GroupLabelPolicy.DEFAULT_DEPTH,
     )
 
     private var state = State()
+
+    /** Master switch (design section 21). OFF removes every header; the IDE is back to stock. */
+    var enabled: Boolean
+        get() = state.enabled
+        set(value) {
+            state = state.copy(enabled = value)
+        }
 
     var groupLabelDepth: Int
         get() = state.groupLabelDepth
