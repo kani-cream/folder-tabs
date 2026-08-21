@@ -1,12 +1,41 @@
 package com.github.kanicream.foldertabs.grouping
 
 /**
- * Resolves display names for directories so that directories sharing a name are shown
- * with the shortest trailing path that tells them apart (design section 6).
- *
- * Pure: works on path segment lists, not on [com.intellij.openapi.vfs.VirtualFile], so it
- * is unit-testable and independent of the VFS. Segments are ordered root-first; the last
- * segment is the directory's own name.
+ * Where a directory label comes from: root-first path segments, relative to the project
+ * base directory when [projectRelative] is true (empty = the project root itself),
+ * otherwise the full path.
+ */
+data class DirectoryLabelSource(
+    val segments: List<String>,
+    val projectRelative: Boolean,
+)
+
+/**
+ * How group labels are rendered (design section 6.5): [minDepth] segments at least
+ * ([PROJECT_ROOT_DEPTH] = always up to the project root), prefixed with `~/<projectName>/`
+ * once a project-relative label reaches the root.
+ */
+data class GroupLabelPolicy(
+    val minDepth: Int,
+    val projectName: String,
+) {
+    init {
+        require(minDepth == PROJECT_ROOT_DEPTH || minDepth >= 1) { "minDepth must be >= 1 or PROJECT_ROOT_DEPTH" }
+    }
+
+    val effectiveMinDepth: Int get() = if (minDepth == PROJECT_ROOT_DEPTH) Int.MAX_VALUE else minDepth
+
+    companion object {
+        /** Sentinel for "show the whole path from the project root". */
+        const val PROJECT_ROOT_DEPTH: Int = 0
+        const val DEFAULT_DEPTH: Int = 2
+    }
+}
+
+/**
+ * Resolves display names for directories (design sections 6 and 6.5): start from the
+ * configured depth and, for directories that still share a label, add parent segments until
+ * the labels differ. Pure; no VFS dependency.
  */
 object MinimalUniquePathResolver {
 
@@ -16,32 +45,43 @@ object MinimalUniquePathResolver {
     /** UI separator is always `/`, regardless of OS (design section 6.4). */
     const val SEPARATOR: String = "/"
 
-    fun <K> resolve(segmentsByKey: Map<K, List<String>>): Map<K, String> {
-        val resolved = segmentsByKey
-            .filterValues { it.isNotEmpty() }
+    /** Marks a label that starts at the project root (design section 6.5). */
+    const val PROJECT_ROOT_PREFIX: String = "~"
+
+    fun <K> resolve(sources: Map<K, DirectoryLabelSource>, policy: GroupLabelPolicy): Map<K, String> {
+        val resolved = sources
+            .filterValues { it.segments.isNotEmpty() || it.projectRelative }
             .entries
-            .groupBy({ it.value.last() }, { it.key to it.value })
-            .flatMap { (_, sameName) -> resolveCollisionGroup(sameName) }
+            .groupBy({ it.value.segments.lastOrNull() ?: "" }, { it.key to it.value })
+            .flatMap { (_, sameName) -> resolveCollisionGroup(sameName, policy) }
             .toMap()
-        val fallbacks = segmentsByKey.keys
-            .filter { it !in resolved }
-            .associateWith { FALLBACK_NAME }
+        val fallbacks = sources.keys.filter { it !in resolved }.associateWith { FALLBACK_NAME }
         return resolved + fallbacks
     }
 
-    private fun <K> resolveCollisionGroup(entries: List<Pair<K, List<String>>>): List<Pair<K, String>> {
+    private fun <K> resolveCollisionGroup(
+        entries: List<Pair<K, DirectoryLabelSource>>,
+        policy: GroupLabelPolicy,
+    ): List<Pair<K, String>> {
+        val maxDepth = entries.maxOf { it.second.segments.size }.coerceAtLeast(1)
+        val start = policy.effectiveMinDepth.coerceAtMost(maxDepth)
         if (entries.size == 1) {
-            val (key, segments) = entries.single()
-            return listOf(key to segments.last())
+            val (key, source) = entries.single()
+            return listOf(key to label(source, start, policy))
         }
-        val maxDepth = entries.maxOf { it.second.size }
-        return (1..maxDepth)
+        return (start..maxDepth)
             .asSequence()
-            .map { depth -> entries.map { (key, segments) -> key to suffix(segments, depth) } }
+            .map { depth -> entries.map { (key, source) -> key to label(source, depth, policy) } }
             .firstOrNull { candidates -> candidates.distinctBy { it.second }.size == candidates.size }
-            ?: entries.map { (key, segments) -> key to suffix(segments, maxDepth) }
+            ?: entries.map { (key, source) -> key to label(source, maxDepth, policy) }
     }
 
-    private fun suffix(segments: List<String>, depth: Int): String =
-        segments.takeLast(depth).joinToString(SEPARATOR)
+    /** Design section 6.5 pseudo-code. */
+    fun label(source: DirectoryLabelSource, depth: Int, policy: GroupLabelPolicy): String {
+        val segments = source.segments
+        if (source.projectRelative && depth >= segments.size) {
+            return (listOf(PROJECT_ROOT_PREFIX, policy.projectName) + segments).joinToString(SEPARATOR)
+        }
+        return segments.takeLast(depth).joinToString(SEPARATOR)
+    }
 }

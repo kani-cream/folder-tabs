@@ -47,6 +47,9 @@ class GroupedTabsPanel(
             items = group?.files.orEmpty().map { TabStrip.Item(key = it.file, text = it.displayName, tooltip = it.fullPath) },
             selectedKey = ownFile,
         )
+        // Tabs were added after the header joined the editor: make the editor re-layout.
+        component.revalidate()
+        component.repaint()
     }
 
     private fun onGroupSelected(key: Any) {

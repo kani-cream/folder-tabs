@@ -1,20 +1,22 @@
 package com.github.kanicream.foldertabs.grouping
 
 /**
- * Turns a directory path into root-first segments for [MinimalUniquePathResolver]
- * (design section 6.3): paths under the project base directory are taken relative to it,
- * everything else uses the full path. Pure string logic; VFS paths always use `/`.
+ * Turns a directory path into a [DirectoryLabelSource] (design section 6.3): paths under the
+ * project base directory become project-relative segments (empty for the root itself),
+ * everything else keeps its full path. Pure string logic; VFS paths always use `/`.
  */
 object DirectoryPathSegments {
 
-    fun of(directoryPath: String, projectBasePath: String?): List<String> {
+    fun of(directoryPath: String, projectBasePath: String?): DirectoryLabelSource {
         val relative = relativeToBase(directoryPath, projectBasePath)
-        val source = relative ?: directoryPath
-        val segments = source.split('/').filter { it.isNotEmpty() }
-        // The project base directory itself: keep its own name so it has a label.
-        if (segments.isEmpty()) return listOf(lastSegment(directoryPath)).filter { it.isNotEmpty() }
-        return segments
+        return if (relative != null) {
+            DirectoryLabelSource(split(relative), projectRelative = true)
+        } else {
+            DirectoryLabelSource(split(directoryPath), projectRelative = false)
+        }
     }
+
+    private fun split(path: String): List<String> = path.split('/').filter { it.isNotEmpty() }
 
     private fun relativeToBase(path: String, base: String?): String? {
         if (base.isNullOrEmpty()) return null
@@ -25,6 +27,4 @@ object DirectoryPathSegments {
             else -> null
         }
     }
-
-    private fun lastSegment(path: String): String = path.trimEnd('/').substringAfterLast('/')
 }

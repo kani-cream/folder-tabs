@@ -7,7 +7,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.vfs.VirtualFile
 
 /**
- * Builds the [GroupedTabsModel] from the currently open files (design sections 5, 7, 9):
+ * Builds the [GroupedTabsModel] from the currently open files (design sections 5, 6.5, 7, 9):
  * one group per immediate parent directory, no recursion, deterministic natural order.
  *
  * Files that are invalid or directories are dropped; files without a parent fall into the
@@ -15,6 +15,7 @@ import com.intellij.openapi.vfs.VirtualFile
  */
 class DirectoryGroupBuilder(
     private val projectBasePath: String?,
+    private val labelPolicy: GroupLabelPolicy,
     private val isModified: (VirtualFile) -> Boolean = { FileDocumentManager.getInstance().isFileModified(it) },
 ) {
 
@@ -38,10 +39,11 @@ class DirectoryGroupBuilder(
     }
 
     private fun resolveDisplayNames(directories: Set<VirtualFile?>): Map<VirtualFile?, String> {
-        val segments = directories.associateWith { dir ->
-            dir?.let { DirectoryPathSegments.of(it.path, projectBasePath) } ?: emptyList()
+        val sources = directories.associateWith { dir ->
+            dir?.let { DirectoryPathSegments.of(it.path, projectBasePath) }
+                ?: DirectoryLabelSource(emptyList(), projectRelative = false)
         }
-        return MinimalUniquePathResolver.resolve(segments)
+        return MinimalUniquePathResolver.resolve(sources, labelPolicy)
     }
 
     private fun toFileTab(file: VirtualFile) = FileTabModel(

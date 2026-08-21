@@ -9,7 +9,8 @@ class DirectoryGroupBuilderTest : BasePlatformTestCase() {
 
     private fun file(path: String): VirtualFile = myFixture.addFileToProject(path, "").virtualFile
 
-    private fun builder() = DirectoryGroupBuilder(projectBasePath = null, isModified = { false })
+    private fun builder(depth: Int = 1, basePath: String? = null) =
+        DirectoryGroupBuilder(projectBasePath = basePath, labelPolicy = GroupLabelPolicy(depth, "proj"), isModified = { false })
 
     fun testSameParentFilesShareOneGroup() {
         val model = builder().build(listOf(file("users/a.go"), file("users/b.go")))
@@ -48,6 +49,18 @@ class DirectoryGroupBuilderTest : BasePlatformTestCase() {
         val f = file("users/a.go")
         val model = builder().build(listOf(f, f, f.parent))
         assertEquals(1, model.groups.single().files.size)
+    }
+
+    fun testDepthTwoShowsParentSegment() {
+        val model = builder(depth = 2).build(listOf(file("src/main/users/a.go")))
+        assertEquals("main/users", model.groups.single().displayName)
+    }
+
+    fun testProjectRootPrefixWhenLabelReachesBase() {
+        val f = file("docs/a.md")
+        val base = f.parent.parent.path
+        val model = builder(depth = 3, basePath = base).build(listOf(f))
+        assertEquals("~/proj/docs", model.groups.single().displayName)
     }
 
     fun testEmptyInputGivesEmptyModel() {
