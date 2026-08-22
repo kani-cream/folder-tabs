@@ -1,5 +1,7 @@
 # Folder Tabs
 
+[![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/33711-folder-tabs.svg?label=JetBrains%20Marketplace)](https://plugins.jetbrains.com/plugin/33711-folder-tabs)
+
 Groups your open editor tabs by directory. A two-row header sits above every
 editor: the upper row lists the directories of the files you have open, the
 lower row lists the files of the selected directory.
@@ -35,6 +37,11 @@ Folder Tabs your main tab UI.
   tooltips, single-row tabs with an overflow dropdown.
 - **Safe**: works with split editors, scratch and non-project files, light and
   dark themes; can be turned off in `Settings > Tools > Folder Tabs`.
+
+## Installation
+
+Install from the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33711-folder-tabs):
+`Settings > Plugins > Marketplace`, search for **Folder Tabs**, and click *Install*.
 
 ## Requirements
 
