@@ -1,6 +1,11 @@
 package com.github.kanicream.foldertabs.ui
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.HtmlChunk
@@ -23,7 +28,9 @@ import javax.swing.Timer
  *
  * The strip is a pure view: [render] brings its tabs in line with the given [Item]s and marks
  * the selected one; only user clicks / drags reach [onSelect] / [onReorder]. Programmatic
- * changes during [render] are suppressed via [syncing].
+ * changes during [render] are suppressed via [syncing]. With an [onClose] handler every tab also
+ * gets the standard editor-tab close button ([TabInfo.setTabLabelActions]) and a right-click menu
+ * with "Close" (design section 15); both only report the tab's key plus the click's [DataContext].
  *
  * Navigation happens on the *click* (button release without a drag), not when JBTabs selects
  * the pressed tab: navigating on press switches the editor under the mouse, hides this strip,
@@ -49,6 +56,7 @@ class TabStrip(
     parentDisposable: Disposable,
     private val onSelect: (key: Any) -> Unit,
     private val onReorder: ((keysInNewOrder: List<Any>) -> Unit)? = null,
+    private val onClose: ((key: Any, context: DataContext) -> Unit)? = null,
 ) {
 
     data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
@@ -66,8 +74,13 @@ class TabStrip(
             }
         }, parentDisposable)
         addTabMouseListener(object : MouseAdapter() {
-            override fun mousePressed(e: MouseEvent) = onPointerDown()
-            override fun mouseReleased(e: MouseEvent) = onPointerUp(e)
+            override fun mousePressed(e: MouseEvent) {
+                if (e.isPopupTrigger) showPopup(e) else if (SwingUtilities.isLeftMouseButton(e)) onPointerDown()
+            }
+
+            override fun mouseReleased(e: MouseEvent) {
+                if (e.isPopupTrigger) showPopup(e) else onPointerUp(e)
+            }
         })
     }
 
@@ -81,6 +94,9 @@ class TabStrip(
 
     /** JBTabs' DragHelper is dragging one of our tabs (between the delegate callbacks). */
     private var dragging = false
+
+    /** Test hook: receives the right-click menu instead of showing a real popup (headless tests). */
+    internal var popupPresenterForTest: ((MouseEvent, ActionGroup) -> Unit)? = null
 
     /** Last render that arrived during an interaction; flushed when the interaction ends. */
     private var deferred: Pair<List<Item>, Any?>? = null
@@ -153,12 +169,37 @@ class TabStrip(
         }
     }
 
-    private fun apply(info: TabInfo, item: Item): TabInfo = info
-        .setText(item.text)
-        .setTooltipText(HtmlChunk.text(item.tooltip))
-        .setIcon(item.icon)
-        .setObject(item.key)
-        .also { it.dragDelegate = dragDelegate }
+    private fun apply(info: TabInfo, item: Item): TabInfo {
+        // The close action is bound to the key: install it once per key, keep it across text updates.
+        if (onClose != null && (info.tabLabelActions == null || info.`object` != item.key)) {
+            info.setTabLabelActions(closeGroup(item.key, onClose), ActionPlaces.EDITOR_TAB)
+        }
+        return info
+            .setText(item.text)
+            .setTooltipText(HtmlChunk.text(item.tooltip))
+            .setIcon(item.icon)
+            .setObject(item.key)
+            .also { it.dragDelegate = dragDelegate }
+    }
+
+    private fun closeGroup(key: Any, onClose: (Any, DataContext) -> Unit): ActionGroup =
+        DefaultActionGroup(CloseTabAction(key, onClose))
+
+    /** Right-click on a tab: the standard editor-tab popup place with a single "Close" entry. */
+    private fun showPopup(e: MouseEvent) {
+        val onClose = onClose ?: return
+        val key = tabUnder(e)?.`object` ?: return
+        val group = closeGroup(key, onClose)
+        popupPresenterForTest?.let { present -> present(e, group); return }
+        ActionManager.getInstance()
+            .createActionPopupMenu(ActionPlaces.EDITOR_TAB_POPUP, group)
+            .component
+            .show(e.component, e.x, e.y)
+    }
+
+    /** The tab whose label received [e]; label identity first, since hit-testing needs a layout pass. */
+    private fun tabUnder(e: MouseEvent): TabInfo? =
+        tabs.tabs.firstOrNull { tabs.getTabLabel(it) === e.component } ?: tabs.findInfo(e)
 
     private fun onPointerDown() {
         pressed = true

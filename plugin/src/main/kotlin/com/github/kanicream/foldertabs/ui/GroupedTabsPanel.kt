@@ -5,6 +5,7 @@ import com.github.kanicream.foldertabs.model.FileTabModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Iconable
 import com.intellij.openapi.vfs.VirtualFile
@@ -29,7 +30,7 @@ class GroupedTabsPanel(
 ) : Disposable {
 
     private val groupTabs = TabStrip(project, this, onSelect = ::onGroupSelected, onReorder = ::onGroupsReordered)
-    private val fileTabs = TabStrip(project, this, onSelect = ::onFileSelected)
+    private val fileTabs = TabStrip(project, this, onSelect = ::onFileSelected, onClose = ::onFileClose)
 
     val component: JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
         add(groupTabs.component, BorderLayout.NORTH)
@@ -84,6 +85,11 @@ class GroupedTabsPanel(
         val file = key as? VirtualFile ?: return
         if (file == ownFile) return
         navigator.openFile(file)
+    }
+
+    private fun onFileClose(key: Any, context: DataContext) {
+        val file = key as? VirtualFile ?: return
+        navigator.closeFile(file, context)
     }
 
     override fun dispose() {
