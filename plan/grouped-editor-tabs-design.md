@@ -852,8 +852,8 @@ v1.0のFolder Tabsは **Navigation Only** とし、独自Close操作を実装し
 
 ### 15.1 v1.1で提供するもの
 
-- File Tab右側のClose button（標準Editor Tabと同じ `AllIcons.Actions.Close` / `CloseHovered`、`TabInfo.setTabLabelActions(group, ActionPlaces.EDITOR_TAB)`。標準Editor Tabsと同様に `setTabLabelActionsAutoHide(false)` で常時表示 — 既定のauto-hideのままだとボタンが描画されない）
-- File Tab右クリックメニューの「閉じる」（`ActionPlaces.EDITOR_TAB_POPUP`、項目はこれ1つ）
+- File Tab右側のClose button（標準Editor Tabと同じ `AllIcons.Actions.Close` / `CloseHovered`、`TabInfo.setTabLabelActions(group, ActionPlaces.EDITOR_TAB)`、標準Editor Tabsと同様に `setTabLabelActionsAutoHide(false)`）。**JBTabsの `ActionPanel` は `getActionUpdateThread() == EDT` のactionだけをボタン化する**ため、`CloseTabAction` は `ActionUpdateThread.EDT` を宣言する（BGT既定のままだとボタンが生成されない）。New UIでは標準と同じく active / hover中のタブにだけ描画される
+- File Tab右クリックメニューの「閉じる」: JBTabs自身のpopup（`JBTabs.setPopupGroup(supplier, ActionPlaces.EDITOR_TAB_POPUP, addNavigationGroup = true)`）に1項目追加する。v1.0からある Select Next / Previous Tab はそのまま残る。対象タブは `JBTabs.getTargetInfo()`（popup中は右クリックしたタブ）。独自popupでJBTabsのpopupを置き換えてはならない（ナビゲーション項目が消える）
 - Group Tab右クリックメニューの「グループを閉じる」: そのGroupの全fileを、File Tabの「閉じる」と同じ経路で1つずつ閉じる（15.2）。IDEの Close All / Close Others と同じくwindow単位 — 他paneにだけ開いているfileは残る（`CloseEditorAction` はそのwindowに無いfileをno-opにする）。Group Tabに×ボタンは置かない
 
 Middle click close / Close Othersは提供しない。
