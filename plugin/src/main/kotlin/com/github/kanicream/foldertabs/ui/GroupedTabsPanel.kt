@@ -1,10 +1,12 @@
 package com.github.kanicream.foldertabs.ui
 
+import com.github.kanicream.foldertabs.FolderTabsBundle
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.FileTabModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Iconable
 import com.intellij.openapi.vfs.VirtualFile
@@ -28,8 +30,14 @@ class GroupedTabsPanel(
     private val navigator: FolderTabsNavigator,
 ) : Disposable {
 
-    private val groupTabs = TabStrip(project, this, onSelect = ::onGroupSelected, onReorder = ::onGroupsReordered)
-    private val fileTabs = TabStrip(project, this, onSelect = ::onFileSelected)
+    private val groupTabs = TabStrip(
+        project, this, onSelect = ::onGroupSelected, onReorder = ::onGroupsReordered,
+        close = TabStrip.Close(::onGroupClose, FolderTabsBundle.message("group.close"), showButton = false),
+    )
+    private val fileTabs = TabStrip(
+        project, this, onSelect = ::onFileSelected,
+        close = TabStrip.Close(::onFileClose, FolderTabsBundle.message("tab.close"), showButton = true),
+    )
 
     val component: JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
         add(groupTabs.component, BorderLayout.NORTH)
@@ -84,6 +92,16 @@ class GroupedTabsPanel(
         val file = key as? VirtualFile ?: return
         if (file == ownFile) return
         navigator.openFile(file)
+    }
+
+    private fun onFileClose(key: Any, context: DataContext) {
+        val file = key as? VirtualFile ?: return
+        navigator.closeFile(file, context)
+    }
+
+    private fun onGroupClose(key: Any, context: DataContext) {
+        val group = key as? DirectoryGroupModel ?: return
+        navigator.closeGroup(group, context)
     }
 
     override fun dispose() {

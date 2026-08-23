@@ -1,6 +1,10 @@
 package com.github.kanicream.foldertabs.ui
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.HtmlChunk
@@ -23,7 +27,11 @@ import javax.swing.Timer
  *
  * The strip is a pure view: [render] brings its tabs in line with the given [Item]s and marks
  * the selected one; only user clicks / drags reach [onSelect] / [onReorder]. Programmatic
- * changes during [render] are suppressed via [syncing].
+ * changes during [render] are suppressed via [syncing]. With a [Close] configuration the strip's
+ * right-click menu (JBTabs' own popup, so its Select Next / Previous Tab entries stay) gets one
+ * close entry for the right-clicked tab ([JBTabs.getTargetInfo]), and if [Close.showButton] every
+ * tab shows the standard editor-tab close button ([TabInfo.setTabLabelActions]) (design section
+ * 15); both only report the tab's key plus the click's [DataContext].
  *
  * Navigation happens on the *click* (button release without a drag), not when JBTabs selects
  * the pressed tab: navigating on press switches the editor under the mouse, hides this strip,
@@ -49,14 +57,19 @@ class TabStrip(
     parentDisposable: Disposable,
     private val onSelect: (key: Any) -> Unit,
     private val onReorder: ((keysInNewOrder: List<Any>) -> Unit)? = null,
+    private val close: Close? = null,
 ) {
 
     data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
+
+    /** How this strip's tabs close: the handler, the menu entry text, and whether tabs show the inline button. */
+    class Close(val onClose: (key: Any, context: DataContext) -> Unit, val menuText: String, val showButton: Boolean)
 
     private val tabs: JBTabs = JBTabsFactory.createEditorTabs(project, parentDisposable).apply {
         presentation
             .setSingleRow(true)
             .setTabDraggingEnabled(onReorder != null) // design 7.1: JBTabs' own DnD, no custom handling
+            .setTabLabelActionsAutoHide(false) // like the editor tabs: the close button is always visible
             .setPaintFocus(false)
             .setSupportsCompression(true)
         addListener(object : TabsListener {
@@ -66,9 +79,19 @@ class TabStrip(
             }
         }, parentDisposable)
         addTabMouseListener(object : MouseAdapter() {
-            override fun mousePressed(e: MouseEvent) = onPointerDown()
+            override fun mousePressed(e: MouseEvent) {
+                if (SwingUtilities.isLeftMouseButton(e)) onPointerDown()
+            }
+
             override fun mouseReleased(e: MouseEvent) = onPointerUp(e)
         })
+    }
+
+    /** JBTabs calls this when it opens its tab popup, after it recorded the right-clicked tab. */
+    private val popupGroupSupplier = java.util.function.Supplier<ActionGroup> {
+        val close = close
+        val key = tabs.targetInfo?.`object`
+        if (close == null || key == null) DefaultActionGroup() else closeGroup(key, close)
     }
 
     val component: JComponent get() = tabs.component
@@ -105,6 +128,8 @@ class TabStrip(
     private val interactionTimeout = Timer(INTERACTION_TIMEOUT_MS) { endInteraction() }.apply { isRepeats = false }
 
     init {
+        // JBTabs' own popup (keeps its Select Next / Previous Tab entries); our entry is added per target tab.
+        if (close != null) tabs.setPopupGroup(popupGroupSupplier, ActionPlaces.EDITOR_TAB_POPUP, true)
         Disposer.register(parentDisposable, Disposable {
             disposed = true
             interactionTimeout.stop()
@@ -153,12 +178,21 @@ class TabStrip(
         }
     }
 
-    private fun apply(info: TabInfo, item: Item): TabInfo = info
-        .setText(item.text)
-        .setTooltipText(HtmlChunk.text(item.tooltip))
-        .setIcon(item.icon)
-        .setObject(item.key)
-        .also { it.dragDelegate = dragDelegate }
+    private fun apply(info: TabInfo, item: Item): TabInfo {
+        // The close button is bound to the key: install it once per key, keep it across text updates.
+        if (close != null && close.showButton && (info.tabLabelActions == null || info.`object` != item.key)) {
+            info.setTabLabelActions(closeGroup(item.key, close), ActionPlaces.EDITOR_TAB)
+        }
+        return info
+            .setText(item.text)
+            .setTooltipText(HtmlChunk.text(item.tooltip))
+            .setIcon(item.icon)
+            .setObject(item.key)
+            .also { it.dragDelegate = dragDelegate }
+    }
+
+    private fun closeGroup(key: Any, close: Close): ActionGroup =
+        DefaultActionGroup(CloseTabAction(key, close.menuText, close.onClose))
 
     private fun onPointerDown() {
         pressed = true
@@ -205,6 +239,9 @@ class TabStrip(
 
     /** Test hook: what the safety-net timer does when it fires. */
     internal fun fireInteractionTimeoutForTest() = endInteraction()
+
+    /** Test hook: the group JBTabs would show in its popup right now (null when closing is off). */
+    internal fun popupGroupForTest(): ActionGroup? = if (close == null) null else popupGroupSupplier.get()
 
     private companion object {
         /** Long enough that no real press or drag hits it; it only frees a strip whose release was lost. */

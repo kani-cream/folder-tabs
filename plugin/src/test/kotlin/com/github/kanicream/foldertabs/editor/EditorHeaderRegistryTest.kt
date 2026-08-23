@@ -3,6 +3,7 @@ package com.github.kanicream.foldertabs.editor
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.ui.FolderTabsNavigator
 import com.github.kanicream.foldertabs.ui.GroupedTabsPanel
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.util.Disposer
@@ -36,6 +37,8 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
     private object NoopNavigator : FolderTabsNavigator {
         override fun openFile(file: VirtualFile) = Unit
         override fun openGroup(group: DirectoryGroupModel) = Unit
+        override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
+        override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit
     }
 
