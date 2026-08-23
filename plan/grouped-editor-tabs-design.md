@@ -159,10 +159,10 @@ huga/users
 ### 3.2 v1.0では実現しないこと
 
 - 標準Editor Tabs内部の直接変更
-- 独自Close button / middle-click close
+- middle-click close（File TabのClose button / 右クリック「閉じる」、Group Tabの右クリック「グループを閉じる」はv1.1で追加、15参照）
 - IDE標準タブのPin状態の取得・変更
 - File TabsのDrag & Drop並べ替え（Group Tabsの並べ替えはv0.5で対応、7.1参照）
-- 独自Context Menu / Close Others / Close Group
+- Close Others（右クリックメニューはFile Tab「閉じる」/ Group Tab「グループを閉じる」の各1項目のみ）
 - 任意のユーザー定義グループ
 - Git branch / module / packageによるグループ化
 - PSIを使った意味的な分類
@@ -846,20 +846,33 @@ Scratch、設定ファイル、外部ファイルなど、Project Base Directory
 
 ## 15. Close操作
 
-v1.0のFolder Tabsは **Navigation Only** とし、独自Close操作を実装しない。
+v1.0のFolder Tabsは **Navigation Only** とし、独自Close操作を実装しなかった。理由は、`FileEditorManager.closeFile(file)` のようなProject単位の操作では、同一ファイルを複数splitで開いている場合に「操作したpaneだけ閉じる」というIDE標準semanticsと一致しない可能性があるためである。
 
-File Tabには次を置かない。
+標準Editor Tabsを非表示（Tab placement: None）にしてFolder Tabsだけで運用すると、タブを閉じる手段がIDE標準ショートカットしかなく日常利用で明確に不便なため、**v1.1でFile TabにIDE標準と同じClose操作を追加した**（3.1の小規模UX改善条件を満たす）。
 
-- Close button
-- Middle click close
-- Close Others
-- Close Group
+### 15.1 v1.1で提供するもの
 
-理由は、`FileEditorManager.closeFile(file)` のようなProject単位の操作では、同一ファイルを複数splitで開いている場合に「操作したpaneだけ閉じる」というIDE標準semanticsと一致しない可能性があるためである。
+- File Tab右側のClose button（標準Editor Tabと同じ `AllIcons.Actions.Close` / `CloseHovered`、`TabInfo.setTabLabelActions(group, ActionPlaces.EDITOR_TAB)`、標準Editor Tabsと同様に `setTabLabelActionsAutoHide(false)`）。**JBTabsの `ActionPanel` は `getActionUpdateThread() == EDT` のactionだけをボタン化する**ため、`CloseTabAction` は `ActionUpdateThread.EDT` を宣言する（BGT既定のままだとボタンが生成されない）。New UIでは標準と同じく active / hover中のタブにだけ描画される
+- File Tab右クリックメニューの「閉じる」: JBTabs自身のpopup（`JBTabs.setPopupGroup(supplier, ActionPlaces.EDITOR_TAB_POPUP, addNavigationGroup = true)`）に1項目追加する。v1.0からある Select Next / Previous Tab はそのまま残る。対象タブは `JBTabs.getTargetInfo()`（popup中は右クリックしたタブ）。独自popupでJBTabsのpopupを置き換えてはならない（ナビゲーション項目が消える）
+- Group Tab右クリックメニューの「グループを閉じる」: そのGroupの全fileを、File Tabの「閉じる」と同じ経路で1つずつ閉じる（15.2）。IDEの Close All / Close Others と同じくwindow単位 — 他paneにだけ開いているfileは残る（`CloseEditorAction` はそのwindowに無いfileをno-opにする）。Group Tabに×ボタンは置かない
 
-ユーザーはIDE標準のClose Active Editor操作（例: `Ctrl/Cmd + W`）を使用する。
+Middle click close / Close Othersは提供しない。
 
-将来、Stable Public APIだけでsplit-awareなclose semanticsを安全に実装できることが確認できた場合にのみ再検討する。
+### 15.2 split-awareなclose（Stable Public API Only）
+
+閉じる処理は `EditorTabCloser` が担い、IDE標準の `CloseEditor` action（`IdeActions.ACTION_CLOSE_EDITOR`、`com.intellij.ide.actions.CloseEditorAction`）へ委譲する。
+
+`CloseEditorAction` は、contextに `EditorWindow.DATA_KEY`（名前 `editorWindow`）があればその window で `CommonDataKeys.VIRTUAL_FILE` を閉じ、なければ現在windowの選択ファイルを閉じる。Headerは該当windowのタブコンテナ（`EditorTabs`）配下にあり、`EditorTabs.uiDataSnapshot` が自分のwindowを `EditorWindow.DATA_KEY` として提供するため、
+
+1. Close button / メニュー項目が受け取った `AnActionEvent.dataContext`（Header内のcomponentから組まれたcontext）を親にし、
+2. `CustomizedDataContext.withSnapshot` でクリックされたFile Tabの `VirtualFile` を `VIRTUAL_FILE` として重ね、
+3. `ActionUtil.performAction(action, AnActionEvent.createEvent(...))` で実行する。
+
+これで「Headerが属するpaneで、クリックしたファイルだけ」が閉じる。`EditorWindow` / `FileEditorManagerEx` は参照しない（`EditorWindow.DATA_KEY` の有無は `DataKey.create("editorWindow")` — 同名keyは単一インスタンス — で判定する）。
+
+contextにwindowが無い場合（`CloseEditorAction` なら *現在windowの選択ファイル* を閉じてしまい、クリックしたタブと異なり得る）は、project全体の `FileEditorManager.closeFile(file)` へフォールバックする。閉じる対象が `isFileOpen` でなければ何もしない。
+
+`CloseContent`（`Cmd/Ctrl+W`、`CloseAction`）は `CloseTarget` 経由でwindowの選択タブを閉じる汎用actionで対象ファイルを指定できないため使わない。
 
 ---
 
@@ -1067,7 +1080,7 @@ Folder TabsをOFFにした場合は、追加済みHeaderを安全に解除し、
 | modified file | File Tabにmodified indicatorを表示 |
 | binary / image file | open fileとして観測でき、valid/non-directoryなら通常扱い |
 | Group/File overflow | 1行固定。overflow UIから全項目へ到達可能 |
-| Close操作 | Folder Tabs独自UIでは提供しない。IDE標準操作を使用 |
+| Close操作 | File TabのClose button / 右クリック「閉じる」、Group Tab右クリック「グループを閉じる」からIDE標準 `CloseEditor` actionへ委譲（15） |
 | Light/Dark切替 | JetBrains UI component/themeに追従 |
 
 ---
@@ -1334,6 +1347,15 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 - [x] Group TabをDrag & Dropで並べ替えられ、順序がProject再起動後も保持される
 - [x] 並べ替え後に新しく開いたGroupはユーザー順序の後ろに既定ソートで並ぶ
 
+### Close（v1.1）
+
+- [ ] File Tab右側の×でそのファイルが閉じる（active / 非activeどちらのタブでも）
+- [ ] File Tab右クリック →「閉じる」でそのファイルが閉じる。右クリックでは切り替わらない
+- [ ] Split Left / Rightで同じファイルを開き、片方のHeaderから閉じると **そのpaneだけ** 閉じる
+- [ ] Tab placement: None でも上記が動く
+- [ ] Group Tab右クリック →「グループを閉じる」でそのGroupの全fileが閉じる。Group Tabに×は無い
+- [ ] 「グループを閉じる」でHeader自身のfile（ownFile）が含まれていても例外なく閉じる
+
 ### Sync
 
 - [x] file openに追従
@@ -1390,6 +1412,11 @@ com.intellij.openapi.vfs.VirtualFileManager
 com.intellij.openapi.vfs.newvfs.BulkFileListener
 com.intellij.util.messages.MessageBus
 com.intellij.ui.tabs.JBTabsFactory
+com.intellij.ui.tabs.TabInfo（setTabLabelActions）
+com.intellij.openapi.actionSystem.ActionManager / IdeActions / ActionPlaces
+com.intellij.openapi.actionSystem.CustomizedDataContext（withSnapshot）
+com.intellij.openapi.actionSystem.AnActionEvent（createEvent）
+com.intellij.openapi.actionSystem.ex.ActionUtil（performAction）
 ```
 
 主要操作:
@@ -1406,6 +1433,11 @@ FileEditorManagerListener.fileClosed(...)
 FileEditorManagerListener.selectionChanged(...)
 FileDocumentManager.isFileModified(...)
 JBTabsFactory.createEditorTabs(project, parentDisposable)
+TabInfo.setTabLabelActions(group, ActionPlaces.EDITOR_TAB)
+ActionManager.createActionPopupMenu(ActionPlaces.EDITOR_TAB_POPUP, group)
+ActionManager.getAction(IdeActions.ACTION_CLOSE_EDITOR)
+CustomizedDataContext.withSnapshot(parent, snapshot)
+ActionUtil.performAction(action, event)
 ```
 
 ### 27.2 同一クラス内でもAPI単位で判定する

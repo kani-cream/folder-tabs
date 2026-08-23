@@ -1,6 +1,7 @@
 package com.github.kanicream.foldertabs.service
 
 import com.github.kanicream.foldertabs.settings.FolderTabsSettings
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -78,6 +79,16 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         } finally {
             settings.enabled = true
         }
+    }
+
+    fun testCloseGroupClosesAllFilesOfThatGroupOnly() {
+        open("users/a.go")
+        open("users/c.go")
+        open("orders/b.go")
+        val users = service.model.groups.first { it.displayName == "users" }
+        service.closeGroup(users, DataContext.EMPTY_CONTEXT)
+        flush()
+        assertEquals(listOf("orders"), service.model.groups.map { it.displayName })
     }
 
     fun testOpenGroupRestoresLastActiveFile() {

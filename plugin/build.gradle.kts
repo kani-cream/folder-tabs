@@ -52,6 +52,12 @@ intellijPlatform {
         name = "Folder Tabs"
         version = project.version.toString()
         changeNotes = """
+            <b>1.1.0</b>
+            <ul>
+              <li>Close from the header: a close button and a right-click <i>Close</i> entry on every
+                  file tab, and <i>Close Group</i> in a group tab's right-click menu. Closing delegates to
+                  the IDE's own <i>Close Editor</i> action, so split panes behave as usual.</li>
+            </ul>
             <b>1.0.0</b>
             <ul>
               <li>Two-row header above every editor: directory groups on top, files of the selected group below.</li>

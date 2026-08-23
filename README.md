@@ -30,6 +30,11 @@ Folder Tabs your main tab UI.
   read `~/<project>/…`.
 - **Fast switching**: click a group to return to the file you last used there;
   click a file to open it in the normal editor.
+- **Close from the header**: every file tab has the standard close button and a
+  right-click *Close* entry; a group tab's right-click menu offers *Close
+  Group* (all files of that directory). So the header works on its own with
+  *Tab placement: None*. Closing goes through the IDE's own *Close Editor*
+  action, so with split editors only the pane you clicked in is affected.
 - **Reorder groups** by drag & drop; the order is remembered per project.
 - **Stays in sync** with open / close / selection and with rename, move and
   delete — without reacting to unrelated VFS churn (Git checkout, builds).
@@ -69,9 +74,10 @@ Group label depth `1` vs `2` for the same open files:
 
 ## Not in scope (by design)
 
-Folder Tabs is navigation only. It does not close, pin or move files, and it
-never changes the standard editor tabs or your IDE settings. Use the IDE's own
-actions (`Cmd/Ctrl+W`, pin, etc.) as usual.
+Folder Tabs does not pin or move files, has no *Close Others* and no
+middle-click close, and it never changes the standard editor tabs or your IDE
+settings. The IDE's own actions (`Cmd/Ctrl+W`, pin, etc.) keep working
+as usual.
 
 ## Development
 
