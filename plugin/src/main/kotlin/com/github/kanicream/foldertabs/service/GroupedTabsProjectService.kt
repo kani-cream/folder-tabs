@@ -156,6 +156,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     override fun closeFile(file: VirtualFile, headerContext: DataContext) = closer.close(file, headerContext)
 
+    override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) =
+        closer.closeAll(group.files.map { it.file }, headerContext)
+
     override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) {
         val keys = groupsInNewOrder.map { it.orderKey }
         if (keys.isEmpty()) return

@@ -38,6 +38,7 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
         override fun openFile(file: VirtualFile) = Unit
         override fun openGroup(group: DirectoryGroupModel) = Unit
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
+        override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit
     }
 

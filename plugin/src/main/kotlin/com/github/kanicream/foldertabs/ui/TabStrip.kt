@@ -28,9 +28,10 @@ import javax.swing.Timer
  *
  * The strip is a pure view: [render] brings its tabs in line with the given [Item]s and marks
  * the selected one; only user clicks / drags reach [onSelect] / [onReorder]. Programmatic
- * changes during [render] are suppressed via [syncing]. With an [onClose] handler every tab also
- * gets the standard editor-tab close button ([TabInfo.setTabLabelActions]) and a right-click menu
- * with "Close" (design section 15); both only report the tab's key plus the click's [DataContext].
+ * changes during [render] are suppressed via [syncing]. With a [Close] configuration every tab
+ * gets a right-click menu with one close entry and, if [Close.showButton], the standard editor-tab
+ * close button ([TabInfo.setTabLabelActions]) (design section 15); both only report the tab's key
+ * plus the click's [DataContext].
  *
  * Navigation happens on the *click* (button release without a drag), not when JBTabs selects
  * the pressed tab: navigating on press switches the editor under the mouse, hides this strip,
@@ -56,15 +57,19 @@ class TabStrip(
     parentDisposable: Disposable,
     private val onSelect: (key: Any) -> Unit,
     private val onReorder: ((keysInNewOrder: List<Any>) -> Unit)? = null,
-    private val onClose: ((key: Any, context: DataContext) -> Unit)? = null,
+    private val close: Close? = null,
 ) {
 
     data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
+
+    /** How this strip's tabs close: the handler, the menu entry text, and whether tabs show the inline button. */
+    class Close(val onClose: (key: Any, context: DataContext) -> Unit, val menuText: String, val showButton: Boolean)
 
     private val tabs: JBTabs = JBTabsFactory.createEditorTabs(project, parentDisposable).apply {
         presentation
             .setSingleRow(true)
             .setTabDraggingEnabled(onReorder != null) // design 7.1: JBTabs' own DnD, no custom handling
+            .setTabLabelActionsAutoHide(false) // like the editor tabs: the close button is always visible
             .setPaintFocus(false)
             .setSupportsCompression(true)
         addListener(object : TabsListener {
@@ -170,9 +175,9 @@ class TabStrip(
     }
 
     private fun apply(info: TabInfo, item: Item): TabInfo {
-        // The close action is bound to the key: install it once per key, keep it across text updates.
-        if (onClose != null && (info.tabLabelActions == null || info.`object` != item.key)) {
-            info.setTabLabelActions(closeGroup(item.key, onClose), ActionPlaces.EDITOR_TAB)
+        // The close button is bound to the key: install it once per key, keep it across text updates.
+        if (close != null && close.showButton && (info.tabLabelActions == null || info.`object` != item.key)) {
+            info.setTabLabelActions(closeGroup(item.key, close), ActionPlaces.EDITOR_TAB)
         }
         return info
             .setText(item.text)
@@ -182,14 +187,14 @@ class TabStrip(
             .also { it.dragDelegate = dragDelegate }
     }
 
-    private fun closeGroup(key: Any, onClose: (Any, DataContext) -> Unit): ActionGroup =
-        DefaultActionGroup(CloseTabAction(key, onClose))
+    private fun closeGroup(key: Any, close: Close): ActionGroup =
+        DefaultActionGroup(CloseTabAction(key, close.menuText, close.onClose))
 
-    /** Right-click on a tab: the standard editor-tab popup place with a single "Close" entry. */
+    /** Right-click on a tab: the standard editor-tab popup place with a single close entry. */
     private fun showPopup(e: MouseEvent) {
-        val onClose = onClose ?: return
+        val close = close ?: return
         val key = tabUnder(e)?.`object` ?: return
-        val group = closeGroup(key, onClose)
+        val group = closeGroup(key, close)
         popupPresenterForTest?.let { present -> present(e, group); return }
         ActionManager.getInstance()
             .createActionPopupMenu(ActionPlaces.EDITOR_TAB_POPUP, group)

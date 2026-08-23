@@ -54,9 +54,9 @@ intellijPlatform {
         changeNotes = """
             <b>1.1.0</b>
             <ul>
-              <li>File tabs can be closed from the header: a close button on every file tab and a
-                  right-click <i>Close</i> entry. Closing delegates to the IDE's own <i>Close Editor</i>
-                  action, so split panes and the unsaved-changes prompt behave as usual.</li>
+              <li>Close from the header: a close button and a right-click <i>Close</i> entry on every
+                  file tab, and <i>Close Group</i> in a group tab's right-click menu. Closing delegates to
+                  the IDE's own <i>Close Editor</i> action, so split panes behave as usual.</li>
             </ul>
             <b>1.0.0</b>
             <ul>
