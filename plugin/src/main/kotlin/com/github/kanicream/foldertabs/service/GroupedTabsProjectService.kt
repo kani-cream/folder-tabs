@@ -12,6 +12,7 @@ import com.github.kanicream.foldertabs.ui.GroupedTabsPanel
 import com.github.kanicream.foldertabs.vfs.VfsChangeClassifier
 import com.github.kanicream.foldertabs.vfs.VfsChangeSummary
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -41,6 +42,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     private val registry = EditorHeaderRegistry()
     private val lastActive = LastActiveFileTracker()
+    private val closer = EditorTabCloser(project)
     private val refreshPending = AtomicBoolean(false)
 
     @Volatile
@@ -151,6 +153,8 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     override fun openGroup(group: DirectoryGroupModel) {
         lastActive.targetFor(group)?.let(::openFile)
     }
+
+    override fun closeFile(file: VirtualFile, headerContext: DataContext) = closer.close(file, headerContext)
 
     override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) {
         val keys = groupsInNewOrder.map { it.orderKey }
