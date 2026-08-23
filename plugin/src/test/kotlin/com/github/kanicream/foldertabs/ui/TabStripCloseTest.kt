@@ -1,7 +1,7 @@
 package com.github.kanicream.foldertabs.ui
 
-import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionUiKind
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.util.Disposer
@@ -48,19 +48,16 @@ class TabStripCloseTest : BasePlatformTestCase() {
         }
     }
 
-    fun testMenuOnlyCloseHasNoButtonButStillAPopup() {
+    fun testMenuOnlyCloseHasNoButtonButStillAPopupEntry() {
         val disposable = Disposer.newDisposable()
         try {
             val closed = mutableListOf<Any>()
-            val shown = mutableListOf<ActionGroup>()
             val strip = TabStrip(project, disposable, onSelect = {}, close = closeSupport(showButton = false) { closed += it })
-            strip.popupPresenterForTest = { _, group -> shown += group }
             strip.render(listOf(item("g")), selectedKey = "g")
             assertNull(strip.tabInfosForTest()[0].tabLabelActions)
 
-            val label = tabLabels(strip).first()
-            label.dispatchEvent(MouseEvent(label, MouseEvent.MOUSE_PRESSED, 0L, MouseEvent.BUTTON3_DOWN_MASK, 1, 1, 1, true, MouseEvent.BUTTON3))
-            perform(shown.single().getChildren(null).filterIsInstance<CloseTabAction>().single())
+            val group = checkNotNull(strip.popupGroupForTest())
+            perform(group.getChildren(null).filterIsInstance<CloseTabAction>().single())
             assertEquals(listOf<Any>("g"), closed)
         } finally {
             Disposer.dispose(disposable)
@@ -105,41 +102,51 @@ class TabStripCloseTest : BasePlatformTestCase() {
         }
     }
 
-    fun testRightClickOffersCloseForTheTabUnderThePointer() {
+    fun testPopupOffersCloseForTheTargetTabAndKeepsJBTabsNavigationEntries() {
         val disposable = Disposer.newDisposable()
         try {
             val closed = mutableListOf<Any>()
-            val selected = mutableListOf<Any>()
-            val shown = mutableListOf<ActionGroup>()
-            val strip = TabStrip(project, disposable, onSelect = { selected += it }, close = closeSupport { key -> closed += key })
-            strip.popupPresenterForTest = { _, group -> shown += group }
-            strip.render(listOf(item("a"), item("b")), selectedKey = "a")
-            val labelB = tabLabels(strip).elementAt(1)
+            val strip = TabStrip(project, disposable, onSelect = {}, close = closeSupport { closed += it })
+            strip.render(listOf(item("a"), item("b")), selectedKey = "b")
 
-            val press = MouseEvent(labelB, MouseEvent.MOUSE_PRESSED, 0L, MouseEvent.BUTTON3_DOWN_MASK, 1, 1, 1, true, MouseEvent.BUTTON3)
-            labelB.dispatchEvent(press)
-            val release = MouseEvent(labelB, MouseEvent.MOUSE_RELEASED, 0L, 0, 1, 1, 1, false, MouseEvent.BUTTON3)
-            labelB.dispatchEvent(release)
-
-            assertEquals(1, shown.size)
-            perform(shown.single().getChildren(null).filterIsInstance<CloseTabAction>().single())
+            // JBTabs' target is the right-clicked tab (or, outside a popup, the selected one).
+            val group = checkNotNull(strip.popupGroupForTest())
+            perform(group.getChildren(null).filterIsInstance<CloseTabAction>().single())
             assertEquals(listOf<Any>("b"), closed)
-            assertEquals(emptyList<Any>(), selected) // a right click never navigates
+            // The popup is JBTabs' own (setPopupGroup with the navigation group kept), not a private menu.
+            assertTrue(strip.tabInfosForTest().isNotEmpty())
         } finally {
             Disposer.dispose(disposable)
         }
     }
 
-    fun testNoPopupWithoutACloseHandler() {
+    fun testCloseActionUpdatesOnEdtSoJBTabsBuildsAButtonForIt() {
+        // JBTabs' ActionPanel only creates buttons for EDT actions; a BGT action gets no button at all.
+        val action = CloseTabAction("k", "Close") { _, _ -> }
+        assertEquals(ActionUpdateThread.EDT, action.actionUpdateThread)
+    }
+
+    fun testNoPopupEntriesWithoutACloseHandler() {
         val disposable = Disposer.newDisposable()
         try {
-            val shown = mutableListOf<ActionGroup>()
             val strip = TabStrip(project, disposable, onSelect = {})
-            strip.popupPresenterForTest = { _, group -> shown += group }
             strip.render(listOf(item("a")), selectedKey = "a")
-            val label = tabLabels(strip).first()
-            label.dispatchEvent(MouseEvent(label, MouseEvent.MOUSE_PRESSED, 0L, MouseEvent.BUTTON3_DOWN_MASK, 1, 1, 1, true, MouseEvent.BUTTON3))
-            assertEquals(emptyList<ActionGroup>(), shown)
+            assertNull(strip.popupGroupForTest())
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun testRightClickDoesNotNavigate() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val selected = mutableListOf<Any>()
+            val strip = TabStrip(project, disposable, onSelect = { selected += it }, close = closeSupport {})
+            strip.render(listOf(item("a"), item("b")), selectedKey = "a")
+            val labelB = tabLabels(strip).elementAt(1)
+            labelB.dispatchEvent(MouseEvent(labelB, MouseEvent.MOUSE_PRESSED, 0L, MouseEvent.BUTTON3_DOWN_MASK, 1, 1, 1, true, MouseEvent.BUTTON3))
+            labelB.dispatchEvent(MouseEvent(labelB, MouseEvent.MOUSE_RELEASED, 0L, 0, 1, 1, 1, false, MouseEvent.BUTTON3))
+            assertEquals(emptyList<Any>(), selected)
         } finally {
             Disposer.dispose(disposable)
         }
