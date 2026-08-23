@@ -159,10 +159,10 @@ huga/users
 ### 3.2 v1.0では実現しないこと
 
 - 標準Editor Tabs内部の直接変更
-- middle-click close（File TabのClose button / 右クリック「閉じる」はv1.1で追加、15参照）
+- middle-click close（File TabのClose button / 右クリック「閉じる」、Group Tabの右クリック「グループを閉じる」はv1.1で追加、15参照）
 - IDE標準タブのPin状態の取得・変更
 - File TabsのDrag & Drop並べ替え（Group Tabsの並べ替えはv0.5で対応、7.1参照）
-- Close Others / Close Group（右クリックメニューは「閉じる」1項目のみ）
+- Close Others（右クリックメニューはFile Tab「閉じる」/ Group Tab「グループを閉じる」の各1項目のみ）
 - 任意のユーザー定義グループ
 - Git branch / module / packageによるグループ化
 - PSIを使った意味的な分類
@@ -852,10 +852,11 @@ v1.0のFolder Tabsは **Navigation Only** とし、独自Close操作を実装し
 
 ### 15.1 v1.1で提供するもの
 
-- File Tab右側のClose button（標準Editor Tabと同じ `AllIcons.Actions.Close` / `CloseHovered`、`TabInfo.setTabLabelActions(group, ActionPlaces.EDITOR_TAB)`）
+- File Tab右側のClose button（標準Editor Tabと同じ `AllIcons.Actions.Close` / `CloseHovered`、`TabInfo.setTabLabelActions(group, ActionPlaces.EDITOR_TAB)`。標準Editor Tabsと同様に `setTabLabelActionsAutoHide(false)` で常時表示 — 既定のauto-hideのままだとボタンが描画されない）
 - File Tab右クリックメニューの「閉じる」（`ActionPlaces.EDITOR_TAB_POPUP`、項目はこれ1つ）
+- Group Tab右クリックメニューの「グループを閉じる」: そのGroupの全fileを、File Tabの「閉じる」と同じ経路で1つずつ閉じる（15.2）。IDEの Close All / Close Others と同じくwindow単位 — 他paneにだけ開いているfileは残る（`CloseEditorAction` はそのwindowに無いfileをno-opにする）。Group Tabに×ボタンは置かない
 
-Group Tabには置かない。Middle click close / Close Others / Close Groupも提供しない。
+Middle click close / Close Othersは提供しない。
 
 ### 15.2 split-awareなclose（Stable Public API Only）
 
@@ -1079,7 +1080,7 @@ Folder TabsをOFFにした場合は、追加済みHeaderを安全に解除し、
 | modified file | File Tabにmodified indicatorを表示 |
 | binary / image file | open fileとして観測でき、valid/non-directoryなら通常扱い |
 | Group/File overflow | 1行固定。overflow UIから全項目へ到達可能 |
-| Close操作 | File TabのClose button / 右クリック「閉じる」からIDE標準 `CloseEditor` actionへ委譲（15）。Group TabにはClose操作なし |
+| Close操作 | File TabのClose button / 右クリック「閉じる」、Group Tab右クリック「グループを閉じる」からIDE標準 `CloseEditor` actionへ委譲（15） |
 | Light/Dark切替 | JetBrains UI component/themeに追従 |
 
 ---
@@ -1352,8 +1353,8 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 - [ ] File Tab右クリック →「閉じる」でそのファイルが閉じる。右クリックでは切り替わらない
 - [ ] Split Left / Rightで同じファイルを開き、片方のHeaderから閉じると **そのpaneだけ** 閉じる
 - [ ] Tab placement: None でも上記が動く
-- [ ] 未保存ファイルを閉じると標準の保存確認が出る（IDE標準actionに委譲）
-- [ ] Group Tabには×も右クリックメニューも無い
+- [ ] Group Tab右クリック →「グループを閉じる」でそのGroupの全fileが閉じる。Group Tabに×は無い
+- [ ] 「グループを閉じる」でHeader自身のfile（ownFile）が含まれていても例外なく閉じる
 
 ### Sync
 

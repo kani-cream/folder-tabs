@@ -52,6 +52,16 @@ class EditorTabCloserTest : BasePlatformTestCase() {
         assertTrue(editors.isFileOpen(a)) // the fake performer did not close anything; no project-wide fallback ran
     }
 
+    fun testCloseAllClosesEveryGivenFileAndLeavesTheRest() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        val c = open("orders/c.go")
+        EditorTabCloser(project, perform = { _, _ -> }).closeAll(listOf(a, b), DataContext.EMPTY_CONTEXT)
+        assertFalse(editors.isFileOpen(a))
+        assertFalse(editors.isFileOpen(b))
+        assertTrue(editors.isFileOpen(c))
+    }
+
     fun testClosingAFileThatIsNotOpenDoesNothing() {
         val a = open("users/a.go")
         editors.closeFile(a)

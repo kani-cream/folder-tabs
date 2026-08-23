@@ -31,6 +31,12 @@ class EditorTabCloser(
     private val hasEditorWindow: (DataContext) -> Boolean = { it.getData(EDITOR_WINDOW) != null },
 ) {
 
+    /**
+     * Closes every file, each as [close] does. The context is a snapshot taken at click time, so it
+     * stays usable even once the header it came from is gone (its own file may be among [files]).
+     */
+    fun closeAll(files: List<VirtualFile>, headerContext: DataContext) = files.forEach { close(it, headerContext) }
+
     fun close(file: VirtualFile, headerContext: DataContext) {
         val manager = FileEditorManager.getInstance(project)
         if (!file.isValid || !manager.isFileOpen(file)) return

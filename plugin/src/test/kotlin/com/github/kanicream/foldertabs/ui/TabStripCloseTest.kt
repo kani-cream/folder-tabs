@@ -15,6 +15,9 @@ class TabStripCloseTest : BasePlatformTestCase() {
 
     private fun item(key: String) = TabStrip.Item(key, key, "/$key")
 
+    private fun closeSupport(showButton: Boolean = true, onClose: (Any) -> Unit) =
+        TabStrip.Close(onClose = { key, _ -> onClose(key) }, menuText = "Close", showButton = showButton)
+
     private fun descendants(c: Component): Sequence<Component> = sequence {
         yield(c)
         if (c is Container) c.components.forEach { yieldAll(descendants(it)) }
@@ -35,11 +38,30 @@ class TabStripCloseTest : BasePlatformTestCase() {
         val disposable = Disposer.newDisposable()
         try {
             val closed = mutableListOf<Any>()
-            val strip = TabStrip(project, disposable, onSelect = {}, onClose = { key, _ -> closed += key })
+            val strip = TabStrip(project, disposable, onSelect = {}, close = closeSupport { key -> closed += key })
             strip.render(listOf(item("a"), item("b")), selectedKey = "a")
 
             perform(closeActionOf(strip, 1))
             assertEquals(listOf<Any>("b"), closed)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun testMenuOnlyCloseHasNoButtonButStillAPopup() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val closed = mutableListOf<Any>()
+            val shown = mutableListOf<ActionGroup>()
+            val strip = TabStrip(project, disposable, onSelect = {}, close = closeSupport(showButton = false) { closed += it })
+            strip.popupPresenterForTest = { _, group -> shown += group }
+            strip.render(listOf(item("g")), selectedKey = "g")
+            assertNull(strip.tabInfosForTest()[0].tabLabelActions)
+
+            val label = tabLabels(strip).first()
+            label.dispatchEvent(MouseEvent(label, MouseEvent.MOUSE_PRESSED, 0L, MouseEvent.BUTTON3_DOWN_MASK, 1, 1, 1, true, MouseEvent.BUTTON3))
+            perform(shown.single().getChildren(null).filterIsInstance<CloseTabAction>().single())
+            assertEquals(listOf<Any>("g"), closed)
         } finally {
             Disposer.dispose(disposable)
         }
@@ -59,7 +81,7 @@ class TabStripCloseTest : BasePlatformTestCase() {
     fun testInPlaceUpdateKeepsTheCloseActionGroup() {
         val disposable = Disposer.newDisposable()
         try {
-            val strip = TabStrip(project, disposable, onSelect = {}, onClose = { _, _ -> })
+            val strip = TabStrip(project, disposable, onSelect = {}, close = closeSupport {})
             strip.render(listOf(item("a"), item("b")), selectedKey = "a")
             val before = strip.tabInfosForTest().map { it.tabLabelActions }
             strip.render(listOf(TabStrip.Item("a", "*a", "/a"), item("b")), selectedKey = "b")
@@ -73,7 +95,7 @@ class TabStripCloseTest : BasePlatformTestCase() {
         val disposable = Disposer.newDisposable()
         try {
             val closed = mutableListOf<Any>()
-            val strip = TabStrip(project, disposable, onSelect = {}, onClose = { key, _ -> closed += key })
+            val strip = TabStrip(project, disposable, onSelect = {}, close = closeSupport { key -> closed += key })
             strip.render(listOf(item("a"), item("b")), selectedKey = "a")
             strip.render(listOf(item("b"), item("a")), selectedKey = "a")
             perform(closeActionOf(strip, 0))
@@ -89,7 +111,7 @@ class TabStripCloseTest : BasePlatformTestCase() {
             val closed = mutableListOf<Any>()
             val selected = mutableListOf<Any>()
             val shown = mutableListOf<ActionGroup>()
-            val strip = TabStrip(project, disposable, onSelect = { selected += it }, onClose = { key, _ -> closed += key })
+            val strip = TabStrip(project, disposable, onSelect = { selected += it }, close = closeSupport { key -> closed += key })
             strip.popupPresenterForTest = { _, group -> shown += group }
             strip.render(listOf(item("a"), item("b")), selectedKey = "a")
             val labelB = tabLabels(strip).elementAt(1)
