@@ -21,6 +21,7 @@ import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditor
+import com.intellij.util.ui.UIUtil
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -199,7 +200,8 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     }
 
     private fun attachHeader(editor: FileEditor, file: VirtualFile) {
-        val panel = GroupedTabsPanel(project, file, this)
+        // Same rule as the platform's EditorTabs: the header is "active" while its editor owns the focus.
+        val panel = GroupedTabsPanel(project, file, this, isEditorActive = { UIUtil.isFocusAncestor(editor.component) })
         Disposer.register(this, panel)
         runCatching {
             editorManager().addTopComponent(editor, panel.component)

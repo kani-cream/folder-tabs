@@ -81,12 +81,13 @@ intellijPlatform {
     pluginVerification {
         // Stable Public API Only gate (plan/github-actions-ci-design.md section 11).
         // COMPATIBILITY_WARNINGS is intentionally left out and reviewed from the report.
+        // INTERNAL_API_USAGES is enforced by checkInternalApiUsages instead (same rule, but with the reviewed
+        // allowlist in verifier-internal-api-allowlist.txt; the verifier itself cannot exempt single usages).
         failureLevel = listOf(
             VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
             VerifyPluginTask.FailureLevel.DEPRECATED_API_USAGES,
             VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
             VerifyPluginTask.FailureLevel.EXPERIMENTAL_API_USAGES,
-            VerifyPluginTask.FailureLevel.INTERNAL_API_USAGES,
             VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
             VerifyPluginTask.FailureLevel.NON_EXTENDABLE_API_USAGES,
             VerifyPluginTask.FailureLevel.MISSING_DEPENDENCIES,
@@ -96,4 +97,46 @@ intellijPlatform {
             recommended()
         }
     }
+}
+
+/**
+ * Internal API gate with a reviewed allowlist: every usage in the verifier's `internal-api-usages.txt`
+ * must match a regex in `verifier-internal-api-allowlist.txt`, and every allowlist entry must still be in
+ * use (so stale exceptions are removed). Runs after every `verifyPlugin`.
+ */
+val checkInternalApiUsages = tasks.register("checkInternalApiUsages") {
+    group = "verification"
+    description = "Fails on Plugin Verifier internal API usages that are not on the reviewed allowlist."
+    val allowlistFile = layout.projectDirectory.file("verifier-internal-api-allowlist.txt")
+    val reportsDir = layout.buildDirectory.dir("reports/pluginVerifier")
+    inputs.file(allowlistFile)
+    inputs.dir(reportsDir).optional()
+    doLast {
+        val allowlist = allowlistFile.asFile.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .map(::Regex)
+        val usages = reportsDir.get().asFile.walk()
+            .filter { it.isFile && it.name == "internal-api-usages.txt" }
+            .flatMap { it.readLines().asSequence() }
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toList()
+        val unlisted = usages.filter { usage -> allowlist.none { it.containsMatchIn(usage) } }
+        val stale = allowlist.filter { rule -> usages.none { rule.containsMatchIn(it) } }
+        if (unlisted.isNotEmpty() || stale.isNotEmpty()) {
+            throw GradleException(
+                buildString {
+                    if (unlisted.isNotEmpty()) appendLine("Internal API usages not on the allowlist:\n" + unlisted.joinToString("\n") { "  - $it" })
+                    if (stale.isNotEmpty()) appendLine("Allowlist entries no longer matching any usage (remove them):\n" + stale.joinToString("\n") { "  - ${it.pattern}" })
+                    append("See ${allowlistFile.asFile}")
+                }
+            )
+        }
+        logger.lifecycle("Internal API usages: ${usages.size} reported, all on the reviewed allowlist.")
+    }
+}
+
+tasks.verifyPlugin {
+    finalizedBy(checkInternalApiUsages)
 }

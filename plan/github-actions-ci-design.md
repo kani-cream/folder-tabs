@@ -356,6 +356,18 @@ MISSING_DEPENDENCIES
 INVALID_PLUGIN
 ```
 
+### 11.1 INTERNAL_API_USAGES の例外（許可リスト）
+
+2026-08-26 追記: `INTERNAL_API_USAGES` だけは verifier の `failureLevel` ではなく、
+`plugin/build.gradle.kts` の `checkInternalApiUsages` タスク（`verifyPlugin` の finalizer）で強制する。
+verifier 自身には内部 API 使用を個別に除外する手段がない（`ignoredProblemsFile` は互換性問題専用）ため。
+
+- 判定対象は verifier レポートの `internal-api-usages.txt`。各行が
+  `plugin/verifier-internal-api-allowlist.txt` のいずれかの正規表現に一致しなければ fail。
+- 許可リストの項目がどの使用にも一致しなくなった場合も fail（古い例外を残さない）。
+- 許可リストはレビュー済み例外のみ。現在の唯一の例外: 選択タブを標準エディタタブと同じ
+  アクティブ色（青い下線）で描くために必要な `JBTabsImpl.isActiveTabs` のオーバーライド（`TabStrip`）。
+
 概念例:
 
 ```kotlin
