@@ -2,6 +2,7 @@ package com.github.kanicream.foldertabs.ui
 
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.tabs.impl.JBTabsImpl
 import com.intellij.util.ui.UIUtil
 import java.awt.Component
 import java.awt.Container

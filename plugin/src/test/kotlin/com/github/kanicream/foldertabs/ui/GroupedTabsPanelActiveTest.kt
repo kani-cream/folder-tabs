@@ -6,6 +6,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.tabs.impl.JBTabsImpl
 import java.awt.KeyboardFocusManager
 
 /** The header paints its selected tabs like the standard editor tabs: "active" only while its editor has focus. */
@@ -19,13 +20,17 @@ class GroupedTabsPanelActiveTest : BasePlatformTestCase() {
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit
     }
 
+    private fun isActive(panel: GroupedTabsPanel): Boolean = panel.stripsForTest().all { strip ->
+        (strip.tabsForTest() as JBTabsImpl).let { it.isActiveTabs(it.selectedInfo) }
+    }
+
     fun testStripsFollowTheEditorActiveState() {
         var active = false
         val panel = GroupedTabsPanel(project, LightVirtualFile("a.txt"), NoopNavigator, isEditorActive = { active })
         Disposer.register(testRootDisposable, panel)
-        assertFalse(panel.isActiveForTest())
+        assertFalse(isActive(panel))
         active = true
-        assertTrue(panel.isActiveForTest())
+        assertTrue(isActive(panel))
     }
 
     fun testFocusListenerIsRemovedOnDispose() {
@@ -40,6 +45,6 @@ class GroupedTabsPanelActiveTest : BasePlatformTestCase() {
     fun testPanelIsActiveByDefault() {
         val panel = GroupedTabsPanel(project, LightVirtualFile("a.txt"), NoopNavigator)
         Disposer.register(testRootDisposable, panel)
-        assertTrue(panel.isActiveForTest())
+        assertTrue(isActive(panel))
     }
 }

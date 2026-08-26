@@ -123,8 +123,8 @@ class GroupedTabsPanel(
         navigator.closeGroup(group, context)
     }
 
-    /** Test hook: whether the strips currently paint their selected tab with the active colours. */
-    internal fun isActiveForTest(): Boolean = fileTabs.isActiveForTest() && groupTabs.isActiveForTest()
+    /** Test hook: the header's strips. */
+    internal fun stripsForTest(): List<TabStrip> = listOf(groupTabs, fileTabs)
 
     /** Test hook: the focus listener this header registered on the [KeyboardFocusManager]. */
     internal fun focusListenerForTest(): PropertyChangeListener = focusListener
