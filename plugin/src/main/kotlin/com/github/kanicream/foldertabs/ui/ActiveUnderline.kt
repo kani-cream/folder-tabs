@@ -27,8 +27,8 @@ import javax.swing.SwingUtilities
  * on top: a rounded bar of `underlineHeight` at the bottom of the label. In the new UI the underline
  * colour is the only visible difference between an active and an inactive selected tab.
  *
- * Like JBTabs, nothing is painted for a single tab (JBTabs draws no selection then either), and the
- * underline follows [isActive] so split editors keep highlighting only the focused pane.
+ * The underline is painted for a single tab too (the standard editor tabs' painter adapter does,
+ * unlike plain JBTabs) and follows [isActive] so split editors keep highlighting only the focused pane.
  */
 class ActiveUnderline(
     private val tabs: JBTabs,
@@ -54,7 +54,7 @@ class ActiveUnderline(
 
     /** Where the active underline goes, in this panel's coordinates; null when nothing should be painted. */
     fun underlineRectangle(): Rectangle? {
-        if (!isActive() || tabs.tabs.size <= MIN_TABS_FOR_SELECTION) return null
+        if (!isActive()) return null
         val selected = tabs.selectedInfo ?: return null
         val label = tabs.getTabLabel(selected) ?: return null
         if (!label.isShowing && label.width <= 0) return null
@@ -65,9 +65,6 @@ class ActiveUnderline(
     }
 
     companion object {
-        /** JBTabs paints the selected-tab look only when more than one tab is visible. */
-        private const val MIN_TABS_FOR_SELECTION = 1
-
         /** The active underline colour, resolved the way the platform's editor tab theme does. */
         fun color(): Color =
             EditorColorsManager.getInstance().globalScheme.getColor(EditorColors.TAB_UNDERLINE)
