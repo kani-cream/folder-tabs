@@ -9,9 +9,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.ui.tabs.JBTabs
+import com.intellij.ui.tabs.JBTabsFactory
 import com.intellij.ui.tabs.TabInfo
 import com.intellij.ui.tabs.TabsListener
-import com.intellij.ui.tabs.impl.JBEditorTabs
 import java.awt.Dimension
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -22,16 +22,13 @@ import javax.swing.SwingUtilities
 import javax.swing.Timer
 
 /**
- * One single-row tab strip backed by the platform's editor-style [JBTabs] ([JBEditorTabs], the
- * class `JBTabsFactory.createEditorTabs` instantiates; subclassed only to override `isActiveTabs`,
- * the plugin's single internal-API usage, see the Plugin Verifier ignore list).
+ * One single-row tab strip backed by the platform's editor-style [JBTabs]
+ * (design section 11.3: created through [JBTabsFactory.createEditorTabs], never `new`).
  *
- * Selected-tab look: JBTabs paints the selected tab with the *active* colours (blue underline,
- * `TAB_SELECTED` background) only when `JBTabsImpl.isActiveTabs` is true, otherwise with the
- * inactive ones (grey underline). The platform's own EditorTabs answers that from its editor's
- * focus; the default `isFocusAncestor(tabs)` would always be false here (the editor is not a
- * descendant of this strip), so the owner supplies [isActive] and the strip repaints on
- * [repaintActiveState].
+ * Selected-tab look: JBTabs itself always paints this strip's selected tab in its *inactive*
+ * colours (its active check needs the focus owner inside the tabs, and the editor is not a
+ * descendant of a header). [ActiveUnderline] therefore paints the active underline over the
+ * selected tab whenever the owner says the strip [isActive]; see that class for the details.
  *
  * The strip is a pure view: [render] brings its tabs in line with the given [Item]s and marks
  * the selected one; only user clicks / drags reach [onSelect] / [onReorder]. Programmatic
@@ -74,9 +71,7 @@ class TabStrip(
     /** How this strip's tabs close: the handler, the menu entry text, and whether tabs show the inline button. */
     class Close(val onClose: (key: Any, context: DataContext) -> Unit, val menuText: String, val showButton: Boolean)
 
-    private val tabs: JBTabs = object : JBEditorTabs(project, parentDisposable) {
-        override fun isActiveTabs(info: TabInfo?): Boolean = isActive()
-    }.apply {
+    private val tabs: JBTabs = JBTabsFactory.createEditorTabs(project, parentDisposable).apply {
         presentation
             .setSingleRow(true)
             .setTabDraggingEnabled(onReorder != null) // design 7.1: JBTabs' own DnD, no custom handling
@@ -105,7 +100,10 @@ class TabStrip(
         if (close == null || key == null) DefaultActionGroup() else closeGroup(key, close)
     }
 
-    val component: JComponent get() = tabs.component
+    private val underline = ActiveUnderline(tabs, isActive)
+
+    /** The strip's Swing component: the JBTabs wrapped in its [ActiveUnderline] overlay. */
+    val component: JComponent get() = underline
 
     private var syncing = false
     private var disposed = false
@@ -161,7 +159,7 @@ class TabStrip(
 
     /** Repaints the strip after the owner's active state may have changed (focus moved). */
     fun repaintActiveState() {
-        tabs.component.repaint()
+        underline.repaint()
     }
 
     /** Cheap in-place update (used for the modified indicator) without rebuilding the strip. */
@@ -250,8 +248,11 @@ class TabStrip(
     /** Test hook: the live TabInfos, to prove in-place updates keep instances. */
     internal fun tabInfosForTest(): List<TabInfo> = tabs.tabs
 
-    /** Test hook: the underlying JBTabs (tests cast it to ask what it will paint the selected tab as). */
+    /** Test hook: the underlying JBTabs. */
     internal fun tabsForTest(): JBTabs = tabs
+
+    /** Test hook: whether the owner currently reports the strip as active. */
+    internal fun isActiveForTest(): Boolean = isActive()
 
     /** Test hook: JBTabs' current selection. */
     internal fun selectedInfoForTest(): TabInfo? = tabs.selectedInfo

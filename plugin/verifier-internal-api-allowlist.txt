@@ -1,8 +1,0 @@
-# Internal API usages the Plugin Verifier may report without failing CI (checkInternalApiUsages).
-# One regex per line, matched (find) against each usage line of the verifier's internal-api-usages.txt.
-# Every entry is a reviewed exception and documents why; anything not listed here still fails the gate.
-#
-# Painting the selected header tab with the editor's active colours (blue underline, like the standard editor
-# tabs) requires overriding JBTabsImpl.isActiveTabs; it is @ApiStatus.Internal and has no public replacement
-# (see TabStrip). Only that override is allowed, and only from TabStrip.
-^Internal method com\.intellij\.ui\.tabs\.impl\.JBTabsImpl\.isActiveTabs\(com\.intellij\.ui\.tabs\.TabInfo info\) : boolean is overridden in class com\.github\.kanicream\.foldertabs\.ui\.TabStrip\.tabs\$1\.
