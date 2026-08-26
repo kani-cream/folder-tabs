@@ -201,7 +201,11 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     private fun attachHeader(editor: FileEditor, file: VirtualFile) {
         // Same rule as the platform's EditorTabs: the header is "active" while its editor owns the focus.
-        val panel = GroupedTabsPanel(project, file, this, isEditorActive = { UIUtil.isFocusAncestor(editor.component) })
+        val panel = GroupedTabsPanel(
+            project, file, this,
+            isEditorActive = { UIUtil.isFocusAncestor(editor.component) },
+            editorFocusTarget = { editor.preferredFocusedComponent ?: editor.component },
+        )
         Disposer.register(this, panel)
         runCatching {
             editorManager().addTopComponent(editor, panel.component)

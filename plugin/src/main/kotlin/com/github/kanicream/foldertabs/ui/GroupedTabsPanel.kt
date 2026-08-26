@@ -28,7 +28,8 @@ import javax.swing.JComponent
  *
  * Selected tabs are painted like the standard editor tabs: with the *active* colours only while
  * the header's editor has focus ([isEditorActive]; in split editors only the focused pane's
- * selected tab is blue). Focus changes reach the strips through a
+ * selected tab is blue). Clicking a tab sends the focus to that editor ([editorFocusTarget]),
+ * exactly like the standard tabs, so the header never becomes the focus owner itself. Focus changes reach the strips through a
  * [KeyboardFocusManager] listener so they repaint, as EditorTabs does on its own focus.
  */
 class GroupedTabsPanel(
@@ -36,17 +37,18 @@ class GroupedTabsPanel(
     private val ownFile: VirtualFile,
     private val navigator: FolderTabsNavigator,
     private val isEditorActive: () -> Boolean = { true },
+    private val editorFocusTarget: () -> JComponent? = { null },
 ) : Disposable {
 
     private val groupTabs = TabStrip(
         project, this, onSelect = ::onGroupSelected, onReorder = ::onGroupsReordered,
         close = TabStrip.Close(::onGroupClose, FolderTabsBundle.message("group.close"), showButton = false),
-        isActive = isEditorActive,
+        isActive = isEditorActive, focusTarget = editorFocusTarget,
     )
     private val fileTabs = TabStrip(
         project, this, onSelect = ::onFileSelected,
         close = TabStrip.Close(::onFileClose, FolderTabsBundle.message("tab.close"), showButton = true),
-        isActive = isEditorActive,
+        isActive = isEditorActive, focusTarget = editorFocusTarget,
     )
 
     private val focusListener = PropertyChangeListener {
