@@ -13,6 +13,8 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.IconUtil
 import java.awt.BorderLayout
+import java.awt.KeyboardFocusManager
+import java.beans.PropertyChangeListener
 import javax.swing.Icon
 import javax.swing.JComponent
 
@@ -23,21 +25,38 @@ import javax.swing.JComponent
  * A header belongs to exactly one file ([ownFile]): the editor it sits on always shows that
  * file, so the header's active group/file are derived from it, not from global selection.
  * The header is a pure projection of the [GroupedTabsModel] handed to [render].
+ *
+ * Selected tabs are painted like the standard editor tabs: with the *active* colours only while
+ * the header's editor has focus ([isEditorActive]; in split editors only the focused pane's
+ * selected tab is blue). Focus changes reach the strips through a
+ * [KeyboardFocusManager] listener so they repaint, as EditorTabs does on its own focus.
  */
 class GroupedTabsPanel(
     private val project: Project,
     private val ownFile: VirtualFile,
     private val navigator: FolderTabsNavigator,
+    private val isEditorActive: () -> Boolean = { true },
 ) : Disposable {
 
     private val groupTabs = TabStrip(
         project, this, onSelect = ::onGroupSelected, onReorder = ::onGroupsReordered,
         close = TabStrip.Close(::onGroupClose, FolderTabsBundle.message("group.close"), showButton = false),
+        isActive = isEditorActive,
     )
     private val fileTabs = TabStrip(
         project, this, onSelect = ::onFileSelected,
         close = TabStrip.Close(::onFileClose, FolderTabsBundle.message("tab.close"), showButton = true),
+        isActive = isEditorActive,
     )
+
+    private val focusListener = PropertyChangeListener {
+        groupTabs.repaintActiveState()
+        fileTabs.repaintActiveState()
+    }
+
+    init {
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addPropertyChangeListener(FOCUS_OWNER_PROPERTY, focusListener)
+    }
 
     val component: JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
         add(groupTabs.component, BorderLayout.NORTH)
@@ -104,11 +123,21 @@ class GroupedTabsPanel(
         navigator.closeGroup(group, context)
     }
 
+    /** Test hook: whether the strips currently paint their selected tab with the active colours. */
+    internal fun isActiveForTest(): Boolean = fileTabs.isActiveForTest() && groupTabs.isActiveForTest()
+
+    /** Test hook: the focus listener this header registered on the [KeyboardFocusManager]. */
+    internal fun focusListenerForTest(): PropertyChangeListener = focusListener
+
     override fun dispose() {
-        // TabStrips are registered as children of this Disposable; nothing else to release.
+        // TabStrips are registered as children of this Disposable; only the focus listener is ours.
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removePropertyChangeListener(FOCUS_OWNER_PROPERTY, focusListener)
     }
 
     companion object {
+        /** [KeyboardFocusManager] property that changes whenever keyboard focus settles on a component. */
+        const val FOCUS_OWNER_PROPERTY: String = "permanentFocusOwner"
+
         /** Same convention as the IDE's "Mark modified (*)" editor-tab option (design section 4.1.2). */
         const val MODIFIED_PREFIX: String = "*"
     }
