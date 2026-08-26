@@ -2,11 +2,12 @@ package com.github.kanicream.foldertabs.ui
 
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import com.intellij.ui.tabs.impl.JBTabsImpl
 import com.intellij.util.ui.UIUtil
 import java.awt.Component
 import java.awt.Container
 import java.awt.event.MouseEvent
+import java.awt.image.BufferedImage
+import javax.swing.SwingUtilities
 
 /** The strip must not rebuild TabInfos when only content changes (drag safety, design 7.1). */
 class TabStripTest : BasePlatformTestCase() {
@@ -170,5 +171,58 @@ class TabStripTest : BasePlatformTestCase() {
         } finally {
             Disposer.dispose(disposable)
         }
+    }
+
+    // ---- selected-tab colours: the strip paints the editor's active underline itself (public API only) ----
+
+    fun testActiveStripPaintsTheActiveUnderlineUnderTheSelectedTab() {
+        val disposable = Disposer.newDisposable()
+        try {
+            var active = true
+            val strip = TabStrip(project, disposable, onSelect = {}, isActive = { active })
+            strip.render(listOf(item("a"), item("b")), selectedKey = "a")
+            assertEquals(ActiveUnderline.color().rgb, underlinePixel(strip, "a"))
+            active = false
+            assertFalse(ActiveUnderline.color().rgb == underlinePixel(strip, "a"))
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun testStripIsActiveByDefaultAndOnlyTheSelectedTabIsUnderlined() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val strip = TabStrip(project, disposable, onSelect = {})
+            strip.render(listOf(item("a"), item("b")), selectedKey = "b")
+            assertEquals(ActiveUnderline.color().rgb, underlinePixel(strip, "b"))
+            assertFalse(ActiveUnderline.color().rgb == underlinePixel(strip, "a"))
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun testSingleTabGetsNoUnderlineLikeJBTabs() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val strip = TabStrip(project, disposable, onSelect = {})
+            strip.render(listOf(item("a")), selectedKey = "a")
+            assertFalse(ActiveUnderline.color().rgb == underlinePixel(strip, "a"))
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    /** Lays the strip out at a fixed size, paints it, and samples the middle of the given tab's underline. */
+    private fun underlinePixel(strip: TabStrip, key: String): Int {
+        val component = strip.component
+        component.setSize(600, 40)
+        descendants(component).forEach { (it as? Container)?.doLayout() }
+        val tabs = strip.tabsForTest()
+        val label = tabs.getTabLabel(tabs.tabs.first { it.`object` == key })!!
+        val bounds = SwingUtilities.convertRectangle(label.parent, label.bounds, component)
+        assertTrue("tab label must have a size after layout: $bounds", bounds.width > 0 && bounds.height > 0)
+        val image = BufferedImage(component.width, component.height, BufferedImage.TYPE_INT_ARGB)
+        image.createGraphics().let { g -> component.paint(g); g.dispose() }
+        return image.getRGB(bounds.x + bounds.width / 2, bounds.y + bounds.height - 1)
     }
 }
