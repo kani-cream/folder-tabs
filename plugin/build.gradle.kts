@@ -52,11 +52,12 @@ intellijPlatform {
         name = "Folder Tabs"
         version = project.version.toString()
         changeNotes = """
-            <b>1.2.0</b>
+            <b>1.2.1</b>
             <ul>
-              <li>The selected tab in the header is now painted like the standard editor tab (blue
-                  underline and selected background), so the current file and group are easy to spot. In
-                  split editors only the focused pane's header is highlighted, in sync with the standard tabs.</li>
+              <li>The selected tab in the header now gets the same blue underline as the standard editor
+                  tab, so the current file and group are easy to spot. In split editors only the focused
+                  pane's header is highlighted, in sync with the standard tabs.</li>
+              <li>Clicking a header tab keeps the focus in the editor, like the standard tabs.</li>
             </ul>
             <b>1.1.0</b>
             <ul>
