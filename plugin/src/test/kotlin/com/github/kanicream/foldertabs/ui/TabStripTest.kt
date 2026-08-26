@@ -202,12 +202,12 @@ class TabStripTest : BasePlatformTestCase() {
         }
     }
 
-    fun testSingleTabGetsNoUnderlineLikeJBTabs() {
+    fun testSingleTabIsUnderlinedLikeTheStandardEditorTabs() {
         val disposable = Disposer.newDisposable()
         try {
             val strip = TabStrip(project, disposable, onSelect = {})
             strip.render(listOf(item("a")), selectedKey = "a")
-            assertFalse(ActiveUnderline.color().rgb == underlinePixel(strip, "a"))
+            assertEquals(ActiveUnderline.color().rgb, underlinePixel(strip, "a"))
         } finally {
             Disposer.dispose(disposable)
         }
