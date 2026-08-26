@@ -38,8 +38,8 @@ Folder Tabs your main tab UI.
 - **Reorder groups** by drag & drop; the order is remembered per project.
 - **Stays in sync** with open / close / selection and with rename, move and
   delete — without reacting to unrelated VFS churn (Git checkout, builds).
-- **At a glance**: the selected tab is highlighted exactly like the standard
-  editor tab (blue underline; only the focused split pane is highlighted), file
+- **At a glance**: the selected tab gets the same blue underline as the standard
+  editor tab (only the focused split pane is highlighted), file
   type icons, a `*` marker on modified files, full-path tooltips, single-row
   tabs with an overflow dropdown.
 - **Safe**: works with split editors, scratch and non-project files, light and
