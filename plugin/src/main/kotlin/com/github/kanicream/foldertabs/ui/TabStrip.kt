@@ -30,6 +30,12 @@ import javax.swing.Timer
  * descendant of a header). [ActiveUnderline] therefore paints the active underline over the
  * selected tab whenever the owner says the strip [isActive]; see that class for the details.
  *
+ * Focus: JBTabs moves the focus into the clicked tab's content (`select(info, requestFocus = true)`).
+ * The standard editor tabs hold the editor itself there, so a click lands in the editor; this
+ * strip's content is an empty, non-focusable panel, and every tab names the owner's [focusTarget]
+ * (the pane's editor) as its preferred focusable component instead. Without that a click pulled the
+ * focus out of the editor into the header, which made the header "inactive" and dropped its underline.
+ *
  * The strip is a pure view: [render] brings its tabs in line with the given [Item]s and marks
  * the selected one; only user clicks / drags reach [onSelect] / [onReorder]. Programmatic
  * changes during [render] are suppressed via [syncing]. With a [Close] configuration the strip's
@@ -64,6 +70,7 @@ class TabStrip(
     private val onReorder: ((keysInNewOrder: List<Any>) -> Unit)? = null,
     private val close: Close? = null,
     private val isActive: () -> Boolean = { true },
+    private val focusTarget: () -> JComponent? = { null },
 ) {
 
     data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
@@ -202,6 +209,7 @@ class TabStrip(
             .setTooltipText(HtmlChunk.text(item.tooltip))
             .setIcon(item.icon)
             .setObject(item.key)
+            .setPreferredFocusableComponent(focusTarget())
             .also { it.dragDelegate = dragDelegate }
     }
 
@@ -238,11 +246,12 @@ class TabStrip(
         }
     }
 
-    /** Tabs are navigation only; the content area stays empty and takes no space. */
+    /** Tabs are navigation only; the content area stays empty, takes no space and never takes the focus. */
     private fun emptyContent(): JComponent = JPanel().apply {
         preferredSize = Dimension(0, 0)
         minimumSize = Dimension(0, 0)
         isOpaque = false
+        isFocusable = false
     }
 
     /** Test hook: the live TabInfos, to prove in-place updates keep instances. */

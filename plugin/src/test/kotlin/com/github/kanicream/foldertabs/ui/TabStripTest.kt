@@ -7,6 +7,7 @@ import java.awt.Component
 import java.awt.Container
 import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
+import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
 /** The strip must not rebuild TabInfos when only content changes (drag safety, design 7.1). */
@@ -224,5 +225,23 @@ class TabStripTest : BasePlatformTestCase() {
         val image = BufferedImage(component.width, component.height, BufferedImage.TYPE_INT_ARGB)
         image.createGraphics().let { g -> component.paint(g); g.dispose() }
         return image.getRGB(bounds.x + bounds.width / 2, bounds.y + bounds.height - 1)
+    }
+
+    // ---- focus: a click must land in the editor (like the standard tabs), never in the header ----
+
+    fun testTabsSendTheFocusToTheOwnersTargetAndTheContentIsNotFocusable() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val editor = JPanel()
+            val strip = TabStrip(project, disposable, onSelect = {}, focusTarget = { editor })
+            strip.render(listOf(item("a"), item("b")), selectedKey = "a")
+            strip.render(listOf(item("a", "*a"), item("b")), selectedKey = "a") // in-place update keeps it
+            strip.tabInfosForTest().forEach { info ->
+                assertSame(editor, info.getPreferredFocusableComponent())
+                assertFalse(info.component.isFocusable)
+            }
+        } finally {
+            Disposer.dispose(disposable)
+        }
     }
 }
