@@ -9,6 +9,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.ui.tabs.JBTabs
+import com.intellij.ui.tabs.JBTabsEx
 import com.intellij.ui.tabs.JBTabsFactory
 import com.intellij.ui.tabs.TabInfo
 import com.intellij.ui.tabs.TabsListener
@@ -107,7 +108,12 @@ class TabStrip(
         if (close == null || key == null) DefaultActionGroup() else closeGroup(key, close)
     }
 
-    private val underline = ActiveUnderline(tabs, isActive)
+    private val underline = object : ActiveUnderline(tabs, isActive) {
+        override fun addNotify() {
+            super.addNotify()
+            onAttachedToWindow()
+        }
+    }
 
     /** The strip's Swing component: the JBTabs wrapped in its [ActiveUnderline] overlay. */
     val component: JComponent get() = underline
@@ -162,6 +168,17 @@ class TabStrip(
             return
         }
         if (sameKeys) updateInPlace(current, items, selectedKey, applySelection = true) else rebuild(items, selectedKey)
+    }
+
+    /**
+     * First-layout stability (issue #13). Headers are rendered while their editor is still hidden
+     * (a non-selected editor tab has no root pane), and JBTabs sizes the tab-label actions (the close
+     * button) only when it can see a root pane: rendered detached, the buttons stay at width 0. On the
+     * first show the strip was laid out without them and jumped once they appeared on the next update.
+     * Refreshing the actions the moment the strip enters a window makes the first layout the final one.
+     */
+    private fun onAttachedToWindow() {
+        (tabs as? JBTabsEx)?.updateTabActions(true)
     }
 
     /** Repaints the strip after the owner's active state may have changed (focus moved). */
@@ -259,6 +276,9 @@ class TabStrip(
 
     /** Test hook: the underlying JBTabs. */
     internal fun tabsForTest(): JBTabs = tabs
+
+    /** Test hook: what [ActiveUnderline.addNotify] does (headless tests never get a real addNotify). */
+    internal fun onAttachedToWindowForTest() = onAttachedToWindow()
 
     /** Test hook: whether the owner currently reports the strip as active. */
     internal fun isActiveForTest(): Boolean = isActive()
