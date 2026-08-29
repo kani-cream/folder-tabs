@@ -52,6 +52,15 @@ intellijPlatform {
         name = "Folder Tabs"
         version = project.version.toString()
         changeNotes = """
+            <b>1.2.2</b>
+            <ul>
+              <li>No more jump on the first switch to a file after startup: the header's close buttons are
+                  sized in its first layout, and the tab strip is primed before it is shown so the platform's
+                  first-paint layout state (Islands theme) no longer shifts the tabs afterwards.</li>
+              <li>A file saved right after an edit (e.g. reformat on save) no longer keeps a stale modified marker.</li>
+              <li>Group tabs are keyed by their directory, so a modified-flag change no longer rebuilds the
+                  group strip on the next refresh.</li>
+            </ul>
             <b>1.2.1</b>
             <ul>
               <li>The selected tab in the header now gets the same blue underline as the standard editor
