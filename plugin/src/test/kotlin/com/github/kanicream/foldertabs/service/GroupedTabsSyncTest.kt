@@ -95,6 +95,19 @@ class GroupedTabsSyncTest : BasePlatformTestCase() {
         assertEquals(listOf("b", "zzz"), groupNames())
     }
 
+    fun testEditAndSaveInTheSameEdtTurnLeavesTheFileUnmodified() {
+        val a = open("users/a.go")
+        val doc = FileDocumentManager.getInstance().getDocument(a)!!
+        // Edit and save before the queued modified-flag update has run (like reformat-on-save):
+        // the update queued for the edit must not re-apply the stale "modified" state afterwards.
+        WriteCommandAction.runWriteCommandAction(project) {
+            doc.insertString(0, "y")
+            FileDocumentManager.getInstance().saveDocument(doc)
+        }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        assertFalse(service.model.groups.single().files.single().modified)
+    }
+
     fun testModifiedFlagFollowsDocumentEdits() {
         val a = open("users/a.go")
         assertFalse(service.model.groups.single().files.single().modified)
