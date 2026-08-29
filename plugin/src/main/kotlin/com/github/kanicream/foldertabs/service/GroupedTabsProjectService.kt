@@ -135,10 +135,15 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     private fun onModifiedStateMayHaveChanged(file: VirtualFile) {
         val shown = model.groupOf(file)?.files?.firstOrNull { it.file == file }?.modified ?: return
-        val actual = FileDocumentManager.getInstance().isFileModified(file)
-        if (shown == actual) return
+        if (shown == FileDocumentManager.getInstance().isFileModified(file)) return
         ApplicationManager.getApplication().invokeLater({
             if (project.isDisposed) return@invokeLater
+            // Re-read both sides here: the state seen when the event fired can be stale by the
+            // time this runs (an edit and a save in the same EDT turn), and applying it would
+            // leave a wrong modified marker until the next event.
+            val current = model.groupOf(file)?.files?.firstOrNull { it.file == file }?.modified ?: return@invokeLater
+            val actual = FileDocumentManager.getInstance().isFileModified(file)
+            if (current == actual) return@invokeLater
             model = model.withModified(file, actual)
             registry.all().forEach { (_, panel) -> panel.updateModified(file, actual) }
         }, project.disposed)
