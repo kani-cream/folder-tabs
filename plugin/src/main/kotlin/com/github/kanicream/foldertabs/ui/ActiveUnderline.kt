@@ -30,7 +30,7 @@ import javax.swing.SwingUtilities
  * The underline is painted for a single tab too (the standard editor tabs' painter adapter does,
  * unlike plain JBTabs) and follows [isActive] so split editors keep highlighting only the focused pane.
  */
-class ActiveUnderline(
+open class ActiveUnderline(
     private val tabs: JBTabs,
     private val isActive: () -> Boolean,
 ) : JPanel(BorderLayout()) {

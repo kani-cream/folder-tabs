@@ -9,6 +9,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.Component
 import java.awt.Container
 import java.awt.event.MouseEvent
+import javax.swing.JRootPane
 
 /** File tabs close like the standard editor tabs: an inline close button and a "Close" popup entry. */
 class TabStripCloseTest : BasePlatformTestCase() {
@@ -147,6 +148,30 @@ class TabStripCloseTest : BasePlatformTestCase() {
             labelB.dispatchEvent(MouseEvent(labelB, MouseEvent.MOUSE_PRESSED, 0L, MouseEvent.BUTTON3_DOWN_MASK, 1, 1, 1, true, MouseEvent.BUTTON3))
             labelB.dispatchEvent(MouseEvent(labelB, MouseEvent.MOUSE_RELEASED, 0L, 0, 1, 1, 1, false, MouseEvent.BUTTON3))
             assertEquals(emptyList<Any>(), selected)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    // ---- issue #13: the close button must be part of the first layout once the strip is in a window ----
+
+    fun testCloseButtonIsSizedAsSoonAsTheStripEntersAWindow() {
+        val disposable = Disposer.newDisposable()
+        try {
+            // Rendered while detached (like a header on a not-yet-shown editor): JBTabs cannot size the
+            // button because there is no root pane yet.
+            val strip = TabStrip(project, disposable, onSelect = {}, close = closeSupport { })
+            strip.render(listOf(item("a"), item("b")), selectedKey = "a")
+            val label = strip.tabsForTest().let { it.getTabLabel(it.tabs.first())!! }
+            val detachedWidth = label.preferredSize.width
+
+            // Entering a window: the hook must refresh the actions so the first layout is final.
+            val rootPane = JRootPane()
+            rootPane.contentPane.add(strip.component)
+            strip.onAttachedToWindowForTest()
+
+            assertTrue("close button should widen the label: $detachedWidth -> ${label.preferredSize.width}",
+                label.preferredSize.width > detachedWidth)
         } finally {
             Disposer.dispose(disposable)
         }
