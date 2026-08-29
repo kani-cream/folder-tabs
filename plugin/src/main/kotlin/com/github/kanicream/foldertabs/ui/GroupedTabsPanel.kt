@@ -69,13 +69,19 @@ class GroupedTabsPanel(
     var activeGroup: DirectoryGroupModel? = null
         private set
 
+    /** The model of the last [render]; group tab keys are resolved against it (see [groupFor]). */
+    private var rendered: GroupedTabsModel = GroupedTabsModel.EMPTY
+
     fun render(model: GroupedTabsModel) {
         val group = model.groupOf(ownFile)
         activeGroup = group
+        rendered = model
 
+        // Group tabs are keyed by the group's stable identity (issue #16): keying them by the whole
+        // DirectoryGroupModel value made any file's modified flip a "new key" and rebuilt the strip.
         groupTabs.render(
-            items = model.groups.map { TabStrip.Item(key = it, text = it.displayName, tooltip = it.fullPath, icon = AllIcons.Nodes.Folder) },
-            selectedKey = group,
+            items = model.groups.map { TabStrip.Item(key = it.orderKey, text = it.displayName, tooltip = it.fullPath, icon = AllIcons.Nodes.Folder) },
+            selectedKey = group?.orderKey,
         )
         fileTabs.render(
             items = group?.files.orEmpty().map { TabStrip.Item(key = it.file, text = fileText(it), tooltip = it.fullPath, icon = fileIcon(it.file)) },
@@ -99,14 +105,17 @@ class GroupedTabsPanel(
     private fun fileText(tab: FileTabModel): String =
         if (tab.modified) MODIFIED_PREFIX + tab.displayName else tab.displayName
 
+    /** The current model's group behind a group tab key ([DirectoryGroupModel.orderKey]). */
+    private fun groupFor(key: Any): DirectoryGroupModel? = rendered.groups.firstOrNull { it.orderKey == key }
+
     private fun onGroupSelected(key: Any) {
-        val group = key as? DirectoryGroupModel ?: return
+        val group = groupFor(key) ?: return
         if (group == activeGroup) return
         navigator.openGroup(group)
     }
 
     private fun onGroupsReordered(keys: List<Any>) {
-        navigator.reorderGroups(keys.filterIsInstance<DirectoryGroupModel>())
+        navigator.reorderGroups(keys.mapNotNull(::groupFor))
     }
 
     private fun onFileSelected(key: Any) {
@@ -121,9 +130,15 @@ class GroupedTabsPanel(
     }
 
     private fun onGroupClose(key: Any, context: DataContext) {
-        val group = key as? DirectoryGroupModel ?: return
+        val group = groupFor(key) ?: return
         navigator.closeGroup(group, context)
     }
+
+    /** Test hook: what JBTabs' drag-reorder reports (the tab keys in their new order). */
+    internal fun groupsReorderedForTest(keysInNewOrder: List<Any>) = onGroupsReordered(keysInNewOrder)
+
+    /** Test hook: the group tab's close entry. */
+    internal fun groupCloseForTest(key: Any, context: DataContext) = onGroupClose(key, context)
 
     /** Test hook: the header's strips. */
     internal fun stripsForTest(): List<TabStrip> = listOf(groupTabs, fileTabs)
