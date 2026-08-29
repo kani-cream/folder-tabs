@@ -244,4 +244,50 @@ class TabStripTest : BasePlatformTestCase() {
             Disposer.dispose(disposable)
         }
     }
+
+    // ---- issue #13: the first real layout must already be the final one ----------------------
+
+    fun testFirstLayoutIsStableAcrossTheFirstPaint() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val strip = TabStrip(project, disposable, onSelect = {})
+            strip.render(listOf(item("a"), item("b")), selectedKey = "a")
+            val component = strip.component
+            component.setSize(600, 40)
+            descendants(component).forEach { (it as? Container)?.doLayout() } // first real layout (primes)
+            assertTrue(strip.primedForTest())
+            val tabs = strip.tabsForTest()
+            val before = tabs.tabs.map { tabs.getTabLabel(it)!!.x }
+
+            val image = BufferedImage(component.width, component.height, BufferedImage.TYPE_INT_ARGB)
+            image.createGraphics().let { g -> component.paint(g); g.dispose() }
+            descendants(component).forEach { (it as? Container)?.doLayout() } // re-layout after the first paint
+
+            assertEquals(before, tabs.tabs.map { tabs.getTabLabel(it)!!.x })
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun testPrimingWaitsForTabsAndForARealSize() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val strip = TabStrip(project, disposable, onSelect = {})
+            val component = strip.component
+            component.setSize(600, 40)
+            component.doLayout()
+            assertFalse("no tabs yet: nothing to prime", strip.primedForTest())
+
+            strip.render(listOf(item("a")), selectedKey = "a")
+            component.setSize(0, 0)
+            component.doLayout()
+            assertFalse("no size yet: nothing to prime", strip.primedForTest())
+
+            component.setSize(600, 40)
+            component.doLayout()
+            assertTrue(strip.primedForTest())
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
 }

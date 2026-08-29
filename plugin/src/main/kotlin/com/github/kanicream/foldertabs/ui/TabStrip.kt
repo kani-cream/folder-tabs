@@ -1,6 +1,7 @@
 package com.github.kanicream.foldertabs.ui
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DataContext
@@ -16,6 +17,7 @@ import com.intellij.ui.tabs.TabsListener
 import java.awt.Dimension
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.awt.image.BufferedImage
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -113,6 +115,41 @@ class TabStrip(
             super.addNotify()
             onAttachedToWindow()
         }
+
+        override fun doLayout() {
+            primeBeforeFirstLayout(width, height)
+            super.doLayout()
+        }
+    }
+
+    private var primed = false
+
+    /**
+     * First-layout stability, part 2 (issue #13): the platform's tab painter adapter applies some
+     * layout state lazily, from the *first paint* of a tab label (2026.2 Islands theme:
+     * `IslandsTabPainterAdapter` sets `firstTabOffset` = 3px there). A strip that is laid out,
+     * painted and then re-laid out therefore shifted by that amount once, on its first show.
+     * Painting the JBTabs once into a 1x1 offscreen image right before its first real layout lets
+     * the adapter apply that state up front, so the first visible layout is already the final one.
+     * The paint only hits the first label (1x1 clip), so this needs tabs to exist.
+     */
+    private fun primeBeforeFirstLayout(width: Int, height: Int) {
+        if (primed || width <= 0 || height <= 0 || tabs.tabs.isEmpty()) return
+        primed = true
+        val c = tabs.component
+        c.setBounds(0, 0, width, height)
+        c.doLayout()
+        val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        try {
+            c.paint(g)
+        } catch (e: Exception) {
+            // Priming is an optimisation only; the strip still works, at worst with the old one-time shift.
+            thisLogger().warn("Folder Tabs: priming paint of the tab strip failed", e)
+        } finally {
+            g.dispose()
+        }
+        c.invalidate()
     }
 
     /** The strip's Swing component: the JBTabs wrapped in its [ActiveUnderline] overlay. */
@@ -175,10 +212,12 @@ class TabStrip(
      * (a non-selected editor tab has no root pane), and JBTabs sizes the tab-label actions (the close
      * button) only when it can see a root pane: rendered detached, the buttons stay at width 0. On the
      * first show the strip was laid out without them and jumped once they appeared on the next update.
-     * Refreshing the actions the moment the strip enters a window makes the first layout the final one.
+     * Refreshing the actions the moment the strip enters a window makes the first layout the final one
+     * (without `validateNow`: at addNotify the strip has no size yet, and a layout at size 0 would
+     * only leave a stale scroll offset behind).
      */
     private fun onAttachedToWindow() {
-        (tabs as? JBTabsEx)?.updateTabActions(true)
+        (tabs as? JBTabsEx)?.updateTabActions(false)
     }
 
     /** Repaints the strip after the owner's active state may have changed (focus moved). */
@@ -279,6 +318,9 @@ class TabStrip(
 
     /** Test hook: what [ActiveUnderline.addNotify] does (headless tests never get a real addNotify). */
     internal fun onAttachedToWindowForTest() = onAttachedToWindow()
+
+    /** Test hook: whether the strip has already done its one-time priming paint. */
+    internal fun primedForTest(): Boolean = primed
 
     /** Test hook: whether the owner currently reports the strip as active. */
     internal fun isActiveForTest(): Boolean = isActive()
