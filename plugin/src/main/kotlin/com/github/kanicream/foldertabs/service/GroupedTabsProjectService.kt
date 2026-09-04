@@ -4,6 +4,8 @@ import com.github.kanicream.foldertabs.editor.EditorHeaderRegistry
 import com.github.kanicream.foldertabs.grouping.DirectoryGroupBuilder
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
+import com.github.kanicream.foldertabs.order.FileOrder
+import com.github.kanicream.foldertabs.order.FileOrderState
 import com.github.kanicream.foldertabs.order.GroupOrder
 import com.github.kanicream.foldertabs.order.GroupOrderState
 import com.github.kanicream.foldertabs.settings.FolderTabsSettings
@@ -123,9 +125,16 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         }
         if (summary.isEmpty) return
 
-        val order = GroupOrderState.getInstance(project)
-        summary.renamedUrls.forEach { (old, new) -> order.update { GroupOrder.rename(it, old, new) } }
-        summary.deletedUrls.forEach { url -> order.update { GroupOrder.remove(it, url) } }
+        val groupOrder = GroupOrderState.getInstance(project)
+        val fileOrder = FileOrderState.getInstance(project)
+        summary.renamedUrls.forEach { (old, new) ->
+            groupOrder.update { GroupOrder.rename(it, old, new) }
+            fileOrder.update { FileOrder.rename(it, old, new) }
+        }
+        summary.deletedUrls.forEach { url ->
+            groupOrder.update { GroupOrder.remove(it, url) }
+            fileOrder.update { FileOrder.remove(it, url) }
+        }
 
         if (summary.structureChanged) requestRefresh()
         summary.contentChangedFiles.forEach(::onModifiedStateMayHaveChanged)
@@ -172,6 +181,13 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         requestRefresh()
     }
 
+    override fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>) {
+        val urls = filesInNewOrder.map { it.url }
+        if (urls.isEmpty()) return
+        FileOrderState.getInstance(project).update { FileOrder.applyReorder(it, group.orderKey, urls) }
+        requestRefresh()
+    }
+
     // ---- refresh ----------------------------------------------------------------------
 
     /** Coalesces bursts of events into one rebuild per EDT turn (design section 19). */
@@ -187,8 +203,12 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         if (project.isDisposed) return
         pruneStaleHeaders()
         val policy = FolderTabsSettings.getInstance().labelPolicy(project.name)
-        val order = GroupOrderState.getInstance(project).savedUrls
-        model = DirectoryGroupBuilder(project.basePath, policy, order).build(editorManager().openFiles.toList())
+        val groupOrder = GroupOrderState.getInstance(project).savedUrls
+        val fileOrder = FileOrderState.getInstance(project).saved
+        model = DirectoryGroupBuilder(
+            project.basePath, policy, groupOrder,
+            savedFileOrder = { key -> FileOrder.savedFor(fileOrder, key) },
+        ).build(editorManager().openFiles.toList())
         rebuildCount++
         registry.all().forEach { (editor, panel) ->
             runCatching { panel.render(model) }

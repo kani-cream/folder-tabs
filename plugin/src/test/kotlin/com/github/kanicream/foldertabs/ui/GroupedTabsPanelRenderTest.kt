@@ -18,12 +18,14 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
     private class RecordingNavigator : FolderTabsNavigator {
         val openedGroups = mutableListOf<DirectoryGroupModel>()
         val reordered = mutableListOf<List<DirectoryGroupModel>>()
+        val reorderedFiles = mutableListOf<Pair<DirectoryGroupModel, List<VirtualFile>>>()
         val closedGroups = mutableListOf<DirectoryGroupModel>()
         override fun openFile(file: VirtualFile) = Unit
         override fun openGroup(group: DirectoryGroupModel) { openedGroups += group }
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) { closedGroups += group }
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) { reordered += groupsInNewOrder }
+        override fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>) { reorderedFiles += group to filesInNewOrder }
     }
 
     private val a = LightVirtualFile("a.txt")
@@ -48,6 +50,7 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
         GroupedTabsPanel(project, a, navigator).also { Disposer.register(testRootDisposable, it) }
 
     private fun groupInfos(panel: GroupedTabsPanel) = panel.stripsForTest().first().tabInfosForTest()
+    private fun fileInfos(panel: GroupedTabsPanel) = panel.stripsForTest().last().tabInfosForTest()
 
     fun testModifiedFlipKeepsTheGroupTabInfosInPlace() {
         val panel = panel()
@@ -106,6 +109,31 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
         val keys = groupInfos(panel).map { it.`object`!! }.reversed()
         panel.groupsReorderedForTest(keys)
         assertEquals(listOf("two", "one"), navigator.reordered.single().map { it.displayName })
+    }
+
+    fun testFileReorderReportsTheActiveGroupAndItsFilesInNewOrder() {
+        val navigator = RecordingNavigator()
+        val panel = panel(navigator)
+        panel.render(model())
+        val keys = fileInfos(panel).map { it.`object`!! }.reversed()
+        panel.filesReorderedForTest(keys)
+        val (group, files) = navigator.reorderedFiles.single()
+        assertEquals("one", group.displayName)
+        assertEquals(listOf(b, a), files)
+    }
+
+    fun testFileReorderIgnoresKeysThatAreNotInTheActiveGroup() {
+        val navigator = RecordingNavigator()
+        val panel = panel(navigator)
+        panel.render(model())
+        panel.filesReorderedForTest(listOf(c, b, a)) // c belongs to "two", the header shows "one"
+        assertEquals(listOf(b, a), navigator.reorderedFiles.single().second)
+    }
+
+    fun testFileStripAllowsDragging() {
+        val panel = panel()
+        panel.render(model())
+        assertTrue(panel.stripsForTest().last().isDraggingEnabledForTest())
     }
 
     fun testCloseGroupResolvesToCurrentGroup() {

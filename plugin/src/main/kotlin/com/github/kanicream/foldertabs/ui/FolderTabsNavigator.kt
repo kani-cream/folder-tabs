@@ -17,4 +17,7 @@ interface FolderTabsNavigator {
 
     /** The user dragged group tabs into [groupsInNewOrder] (leftmost first). */
     fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>)
+
+    /** The user dragged the file tabs of [group] into [filesInNewOrder] (leftmost first; design section 7.2). */
+    fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>)
 }

@@ -313,6 +313,9 @@ class TabStrip(
     /** Test hook: the live TabInfos, to prove in-place updates keep instances. */
     internal fun tabInfosForTest(): List<TabInfo> = tabs.tabs
 
+    /** Test hook: whether this strip was built with a reorder handler (= JBTabs dragging enabled). */
+    internal fun isDraggingEnabledForTest(): Boolean = onReorder != null
+
     /** Test hook: the underlying JBTabs. */
     internal fun tabsForTest(): JBTabs = tabs
 

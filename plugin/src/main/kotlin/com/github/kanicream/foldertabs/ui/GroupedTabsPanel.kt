@@ -46,7 +46,7 @@ class GroupedTabsPanel(
         isActive = isEditorActive, focusTarget = editorFocusTarget,
     )
     private val fileTabs = TabStrip(
-        project, this, onSelect = ::onFileSelected,
+        project, this, onSelect = ::onFileSelected, onReorder = ::onFilesReordered,
         close = TabStrip.Close(::onFileClose, FolderTabsBundle.message("tab.close"), showButton = true),
         isActive = isEditorActive, focusTarget = editorFocusTarget,
     )
@@ -118,6 +118,14 @@ class GroupedTabsPanel(
         navigator.reorderGroups(keys.mapNotNull(::groupFor))
     }
 
+    /** Only files of the active group can be dragged here; anything else (stale key) is dropped. */
+    private fun onFilesReordered(keys: List<Any>) {
+        val group = activeGroup ?: return
+        val members = group.files.map { it.file }.toSet()
+        val files = keys.mapNotNull { it as? VirtualFile }.filter { it in members }
+        navigator.reorderFiles(group, files)
+    }
+
     private fun onFileSelected(key: Any) {
         val file = key as? VirtualFile ?: return
         if (file == ownFile) return
@@ -136,6 +144,9 @@ class GroupedTabsPanel(
 
     /** Test hook: what JBTabs' drag-reorder reports (the tab keys in their new order). */
     internal fun groupsReorderedForTest(keysInNewOrder: List<Any>) = onGroupsReordered(keysInNewOrder)
+
+    /** Test hook: what JBTabs' drag-reorder of the file strip reports (the file keys in their new order). */
+    internal fun filesReorderedForTest(keysInNewOrder: List<Any>) = onFilesReordered(keysInNewOrder)
 
     /** Test hook: the group tab's close entry. */
     internal fun groupCloseForTest(key: Any, context: DataContext) = onGroupClose(key, context)

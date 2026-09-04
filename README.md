@@ -55,7 +55,8 @@ are performed manually.
   Group* (all files of that directory). So the header works on its own with
   *Tab placement: None*. Closing goes through the IDE's own *Close Editor*
   action, so with split editors only the pane you clicked in is affected.
-- **Reorder groups** by drag & drop; the order is remembered per project.
+- **Reorder by drag & drop**: group tabs, and file tabs within a group; both
+  orders are remembered per project.
 - **Stays in sync** with open / close / selection and with rename, move and
   delete — without reacting to unrelated VFS churn (Git checkout, builds).
 - **At a glance**: the selected tab gets the same blue underline as the standard
