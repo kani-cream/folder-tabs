@@ -40,6 +40,7 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit
+        override fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>) = Unit
     }
 
     private fun panel(file: VirtualFile): GroupedTabsPanel =

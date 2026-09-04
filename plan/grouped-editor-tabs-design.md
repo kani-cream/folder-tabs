@@ -140,6 +140,7 @@ huga/users
 - 同名ディレクトリはMinimal Unique Pathで表示
 - Group表示名の階層数（Group Label Depth）をApplication-level設定で選択可能にし、初期値は2階層とする
 - Directory Group TabsをDrag & Dropで任意の順序に並べ替え、Projectごとに順序を保持する（v0.5）
+- File TabsをGroup内でDrag & Dropで並べ替え、Projectごとにディレクトリ単位で順序を保持する（v1.3、7.2参照）
 - Group / File Tabsを1行固定で表示し、収まらない項目はoverflowから必ず到達可能にする
 - active Group / Fileは常に視認できる状態へ自動調整する
 - Group / FileのTooltipにfull pathを表示
@@ -161,7 +162,7 @@ huga/users
 - 標準Editor Tabs内部の直接変更
 - middle-click close（File TabのClose button / 右クリック「閉じる」、Group Tabの右クリック「グループを閉じる」はv1.1で追加、15参照）
 - IDE標準タブのPin状態の取得・変更
-- File TabsのDrag & Drop並べ替え（Group Tabsの並べ替えはv0.5で対応、7.1参照）
+- File TabsのGroup間Drag & Drop移動（同一Group内の並べ替えはv1.3で対応、7.2参照）
 - Close Others（右クリックメニューはFile Tab「閉じる」/ Group Tab「グループを閉じる」の各1項目のみ）
 - 任意のユーザー定義グループ
 - Git branch / module / packageによるグループ化
@@ -520,6 +521,8 @@ file10.go
 
 を期待順とする。
 
+ユーザーがDrag & Dropで並べ替えたFileは、7.2のユーザー順序が優先される。
+
 ### 7.1 Group Tabのユーザー並べ替え（v0.5）
 
 Directory Group TabsはDrag & Dropで任意の順序に並べ替えられる。実装はJBTabsの標準DnD（`JBTabsPresentation.setTabDraggingEnabled(true)` と `TabsListener.tabsMoved()`）を使用し、独自のDnD処理は書かない。
@@ -562,9 +565,39 @@ JBTabsのドラッグ中にタブ列を作り直すと、DragHelperが保持す�
 
 #### 制約
 
-- File TabsはDnD並べ替えの対象外（既定ソート固定）
+- File Tabsの並べ替えは7.2（v1.3）で同じ仕組みを流用する
 - 順序はApplication-levelではなくProject-levelとする（プロジェクトごとにディレクトリ構成が異なるため）
 - 「順序をリセット」操作はv0.5では提供しない。必要性が確認できた場合にv1.0 Usability Reviewで検討する
+
+### 7.2 File Tabのユーザー並べ替え（v1.3）
+
+File Tabsも同じGroup内でDrag & Dropで並べ替えられる（Issue #23）。Group Tabsだけが動いてFile Tabsが動かないのはUX上の違和感になるため、7.1の仕組みをそのまま流用する。
+
+- DnDはGroup Tabsと同じくJBTabs標準（`setTabDraggingEnabled(true)` + `tabsMoved()`）。ドラッグ中の再構築禁止・クリック時遷移・`DragDelegate` による状態把握も `TabStrip` が共通で担う
+- **同一Group内の並べ替えのみ**。File TabをほかのGroupへ移す操作は対象外（ファイルの移動はディスク操作になるため）
+- 順序の反映規則・保存時のマージ規則は7.1と同一（`GroupOrder.sort` / `GroupOrder.applyReorder` を1ディレクトリ分のリストに適用する）
+  1. 保存済み順序に含まれるFileを、その順序で先頭に並べる
+  2. 含まれないFile（新しく開いたもの）は、その後ろに7の既定ソートで並べる
+  3. ドラッグ時は表示中の順序を最優先で保存する
+
+#### 順序の保持
+
+- Project-levelの `PersistentStateComponent`（workspace file、`FolderTabsFileOrder`）に、**Groupの順序キー（`DirectoryGroupModel.orderKey`）→ ファイルVFS URLのリスト** のマップとして保存する。`Other` Groupも合成キーで同様に保持する
+- 上限はディレクトリ数（目安200、古い＝最後に並べ替えてから時間が経ったものから削除）と、ディレクトリあたりのファイル数（7.1と同じ200）の2段階
+- rename / moveではディレクトリキーとファイルURLの両方を追従させる。deleteではファイルエントリを削除し、空になったディレクトリのエントリは捨てる（10のVFS追従と同時に処理）
+- 並べ替えは1つのHeaderで行われても、Project内の全Headerへ同じ順序を反映する（分割エディタ間で順序が食い違わない）
+
+#### 並べ替えの発生
+
+```text
+tabsMoved (下段JBTabs)
+    ↓
+Headerのactive Groupに属するfileだけを現在のタブ列から読み取る（属さないキーは捨てる）
+    ↓
+FileOrderStateを更新（そのGroupのリストだけを差し替えた新しいマップを作る）
+    ↓
+requestRefresh → 全Header再描画
+```
 
 ---
 
@@ -1346,6 +1379,8 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 - [x] Group復帰時にlast active fileを復元する
 - [x] Group TabをDrag & Dropで並べ替えられ、順序がProject再起動後も保持される
 - [x] 並べ替え後に新しく開いたGroupはユーザー順序の後ろに既定ソートで並ぶ
+- [ ] File TabをGroup内でDrag & Dropで並べ替えられ、順序がrefresh / Project再起動後も保持される（v1.3、7.2）
+- [ ] File Tabの並べ替えでディスク上のファイルは移動しない。ほかのGroupへは移せない（v1.3、7.2）
 
 ### Close（v1.1）
 

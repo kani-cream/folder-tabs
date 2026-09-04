@@ -1,5 +1,6 @@
 package com.github.kanicream.foldertabs.service
 
+import com.github.kanicream.foldertabs.order.FileOrderState
 import com.github.kanicream.foldertabs.order.GroupOrderState
 import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.intellij.openapi.application.WriteAction
@@ -22,12 +23,14 @@ class GroupedTabsSyncTest : BasePlatformTestCase() {
         savedDepth = FolderTabsSettings.getInstance().groupLabelDepth
         FolderTabsSettings.getInstance().groupLabelDepth = 1
         GroupOrderState.getInstance(project).update { emptyList() }
+        FileOrderState.getInstance(project).update { emptyMap() }
     }
 
     override fun tearDown() {
         try {
             FolderTabsSettings.getInstance().groupLabelDepth = savedDepth
             GroupOrderState.getInstance(project).update { emptyList() }
+            FileOrderState.getInstance(project).update { emptyMap() }
         } finally {
             super.tearDown()
         }
@@ -93,6 +96,63 @@ class GroupedTabsSyncTest : BasePlatformTestCase() {
         WriteAction.runAndWait<Exception> { a.parent.rename(this, "zzz") }
         PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
         assertEquals(listOf("b", "zzz"), groupNames())
+    }
+
+    private fun fileNames(group: Int = 0) = service.model.groups[group].files.map { it.displayName }
+
+    fun testFileReorderPersistsAndSurvivesRefresh() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        assertEquals(listOf("a.go", "b.go"), fileNames())
+        service.reorderFiles(service.model.groups.single(), listOf(b, a))
+        flush()
+        assertEquals(listOf("b.go", "a.go"), fileNames())
+        assertEquals(mapOf(a.parent.url to listOf(b.url, a.url)), FileOrderState.getInstance(project).saved)
+        open("users/c.go") // new files keep the default order after the dragged ones
+        assertEquals(listOf("b.go", "a.go", "c.go"), fileNames())
+    }
+
+    fun testFileReorderDoesNotTouchOtherGroups() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        open("orders/o.go")
+        val users = service.model.groups.first { it.displayName == "users" }
+        service.reorderFiles(users, listOf(b, a))
+        flush()
+        assertEquals(listOf("o.go"), service.model.groups.first { it.displayName == "orders" }.files.map { it.displayName })
+        assertEquals(setOf(a.parent.url), FileOrderState.getInstance(project).saved.keys)
+    }
+
+    fun testSavedFileOrderFollowsDirectoryRename() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        service.reorderFiles(service.model.groups.single(), listOf(b, a))
+        flush()
+        WriteAction.runAndWait<Exception> { a.parent.rename(this, "accounts") }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        assertEquals(listOf("accounts"), groupNames())
+        assertEquals(listOf("b.go", "a.go"), fileNames())
+        assertEquals(setOf(a.parent.url), FileOrderState.getInstance(project).saved.keys)
+    }
+
+    fun testSavedFileOrderFollowsFileRename() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        service.reorderFiles(service.model.groups.single(), listOf(b, a))
+        flush()
+        WriteAction.runAndWait<Exception> { b.rename(this, "z.go") }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        assertEquals(listOf("z.go", "a.go"), fileNames())
+    }
+
+    fun testSavedFileOrderDropsDeletedFiles() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        service.reorderFiles(service.model.groups.single(), listOf(b, a))
+        flush()
+        WriteAction.runAndWait<Exception> { b.delete(this) }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        assertEquals(mapOf(a.parent.url to listOf(a.url)), FileOrderState.getInstance(project).saved)
     }
 
     fun testEditAndSaveInTheSameEdtTurnLeavesTheFileUnmodified() {

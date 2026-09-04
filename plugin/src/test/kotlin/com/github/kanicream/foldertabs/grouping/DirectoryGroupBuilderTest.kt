@@ -60,6 +60,33 @@ class DirectoryGroupBuilderTest : BasePlatformTestCase() {
         assertEquals(users.parent.url, model.groups.last().orderKey)
     }
 
+    fun testSavedFileOrderComesFirstThenNaturalOrder() {
+        val b = file("users/b.go")
+        val c = file("users/c.go")
+        val a = file("users/a.go")
+        val builder = DirectoryGroupBuilder(
+            projectBasePath = null,
+            labelPolicy = GroupLabelPolicy(1, "proj"),
+            savedFileOrder = { key -> if (key == b.parent.url) listOf(c.url, b.url) else null },
+            isModified = { false },
+        )
+        val model = builder.build(listOf(a, b, c))
+        assertEquals(listOf("c.go", "b.go", "a.go"), model.groups.single().files.map { it.displayName })
+    }
+
+    fun testSavedFileOrderOfOtherGroupUsesItsOrderKey() {
+        val one = LightVirtualFile("one.txt")
+        val two = LightVirtualFile("two.txt")
+        val builder = DirectoryGroupBuilder(
+            projectBasePath = null,
+            labelPolicy = GroupLabelPolicy(1, "proj"),
+            savedFileOrder = { key -> if (key == DirectoryGroupModel.OTHER_ORDER_KEY) listOf(two.url) else null },
+            isModified = { false },
+        )
+        val model = builder.build(listOf(one, two))
+        assertEquals(listOf("two.txt", "one.txt"), model.groups.single().files.map { it.displayName })
+    }
+
     fun testDirectoriesAndDuplicatesAreIgnored() {
         val f = file("users/a.go")
         val model = builder().build(listOf(f, f, f.parent))

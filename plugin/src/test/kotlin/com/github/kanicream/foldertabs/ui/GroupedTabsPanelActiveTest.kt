@@ -20,6 +20,7 @@ class GroupedTabsPanelActiveTest : BasePlatformTestCase() {
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit
+        override fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>) = Unit
     }
 
     private fun isActive(panel: GroupedTabsPanel): Boolean = panel.stripsForTest().all { it.isActiveForTest() }
