@@ -7,6 +7,7 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.LightVirtualFile
+import javax.swing.JComponent
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.KeyboardFocusManager
 import javax.swing.JPanel
@@ -15,8 +16,8 @@ import javax.swing.JPanel
 class GroupedTabsPanelActiveTest : BasePlatformTestCase() {
 
     private object NoopNavigator : FolderTabsNavigator {
-        override fun openFile(file: VirtualFile) = Unit
-        override fun openGroup(group: DirectoryGroupModel) = Unit
+        override fun openFile(file: VirtualFile, pane: JComponent?) = Unit
+        override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) = Unit
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit

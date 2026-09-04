@@ -54,7 +54,8 @@ are performed manually.
   right-click *Close* entry; a group tab's right-click menu offers *Close
   Group* (all files of that directory). So the header works on its own with
   *Tab placement: None*. Closing goes through the IDE's own *Close Editor*
-  action, so with split editors only the pane you clicked in is affected.
+  action, so with split editors only the pane you clicked in is affected. Likewise a
+  click on a group or file tab opens the file in the pane whose header you clicked.
 - **Reorder by drag & drop**: group tabs, and file tabs within a group; both
   orders are remembered per project.
 - **Stays in sync** with open / close / selection and with rename, move and

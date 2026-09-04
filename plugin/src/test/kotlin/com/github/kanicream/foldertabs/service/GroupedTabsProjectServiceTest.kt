@@ -97,7 +97,7 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         open("orders/b.go")
         service.onSelectionChanged(c)
         val users = service.model.groups.first { it.displayName == "users" }
-        service.openGroup(users)
+        service.openGroup(users, pane = null)
         flush()
         assertEquals(c, editors.selectedFiles.first())
         assertNotSame(a, editors.selectedFiles.first())

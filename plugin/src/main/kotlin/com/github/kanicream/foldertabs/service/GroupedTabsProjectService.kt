@@ -32,6 +32,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import java.util.concurrent.atomic.AtomicBoolean
+import javax.swing.JComponent
 
 /**
  * Project-level hub (design section 18): owns the model, the last-active tracker and the
@@ -46,6 +47,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     private val registry = EditorHeaderRegistry()
     private val lastActive = LastActiveFileTracker()
     private val closer = EditorTabCloser(project)
+    private val opener = EditorPaneOpener(project)
     private val refreshPending = AtomicBoolean(false)
 
     @Volatile
@@ -160,13 +162,10 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     // ---- FolderTabsNavigator -----------------------------------------------------------
 
-    override fun openFile(file: VirtualFile) {
-        if (!file.isValid) return
-        editorManager().openFile(file, true)
-    }
+    override fun openFile(file: VirtualFile, pane: JComponent?) = opener.open(file, pane)
 
-    override fun openGroup(group: DirectoryGroupModel) {
-        lastActive.targetFor(group)?.let(::openFile)
+    override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) {
+        lastActive.targetFor(group)?.let { openFile(it, pane) }
     }
 
     override fun closeFile(file: VirtualFile, headerContext: DataContext) = closer.close(file, headerContext)

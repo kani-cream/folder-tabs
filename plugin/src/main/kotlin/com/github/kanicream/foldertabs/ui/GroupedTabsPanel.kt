@@ -111,7 +111,7 @@ class GroupedTabsPanel(
     private fun onGroupSelected(key: Any) {
         val group = groupFor(key) ?: return
         if (group == activeGroup) return
-        navigator.openGroup(group)
+        navigator.openGroup(group, editorFocusTarget())
     }
 
     private fun onGroupsReordered(keys: List<Any>) {
@@ -129,7 +129,7 @@ class GroupedTabsPanel(
     private fun onFileSelected(key: Any) {
         val file = key as? VirtualFile ?: return
         if (file == ownFile) return
-        navigator.openFile(file)
+        navigator.openFile(file, editorFocusTarget())
     }
 
     private fun onFileClose(key: Any, context: DataContext) {

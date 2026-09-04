@@ -35,8 +35,8 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
     }
 
     private object NoopNavigator : FolderTabsNavigator {
-        override fun openFile(file: VirtualFile) = Unit
-        override fun openGroup(group: DirectoryGroupModel) = Unit
+        override fun openFile(file: VirtualFile, pane: JComponent?) = Unit
+        override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) = Unit
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit

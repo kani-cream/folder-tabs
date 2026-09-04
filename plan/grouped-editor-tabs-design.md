@@ -612,6 +612,8 @@ File Tab click
     ↓
 VirtualFile取得
     ↓
+（Headerのpaneにfocusが無ければ先にfocusを移す。13参照）
+    ↓
 FileEditorManager.openFile(file, true)
     ↓
 IDE標準Editorをfocus
@@ -832,6 +834,17 @@ Project Group Model
 Group/File Tabをクリックした場合は、ユーザーが操作したHeader側のEditor領域へファイルを開くことを理想挙動とする。
 
 Stable Public APIだけでpaneを明示指定できない場合は、対象Header側へfocusを移してから標準 `openFile()` を呼び、以降のpane選択はIDE標準挙動へ委ねる。
+
+#### 実装（v1.3、Issue #29）
+
+`FileEditorManagerImpl.openFile` はwindow未指定のとき `EditorsSplitters.currentWindow` へ開き、その `currentWindow` はsplittersのfocus watcherが **focus-gainedを受け取った時点** で更新される（2026.2 bytecodeで確認）。一方JBTabsはタブ選択時のfocus移動を `requestFocusLater` で遅延させるため、クリック直後に `openFile` を呼ぶと直前までfocusがあったpaneへ開いてしまう。
+
+そのため `EditorPaneOpener` が次の順で開く:
+
+1. Headerは `FolderTabsNavigator.openFile(file, pane)` / `openGroup(group, pane)` に自分のEditor component（`FileEditor.preferredFocusedComponent`）を渡す
+2. そのpaneが既にfocusを持っていれば（単一pane・同じpane内の操作）即座に `openFile()` を呼ぶ。従来と同じ
+3. 持っていなければ `IdeFocusManager.requestFocus(pane, true)` でfocusを移し、`invokeLater` で次のEDTターンに `openFile()` を呼ぶ（focus-gainedイベントの処理後）。その時点でfileが無効・projectがdisposedなら何もしない
+4. paneが `null` のとき（Header以外からの呼び出し）はIDE標準挙動
 
 Split制御のために `FileEditorManagerEx` / `EditorWindow` は使用しない。
 
