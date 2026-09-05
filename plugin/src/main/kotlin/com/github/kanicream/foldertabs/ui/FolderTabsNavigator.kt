@@ -3,11 +3,18 @@ package com.github.kanicream.foldertabs.ui
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.vfs.VirtualFile
+import javax.swing.JComponent
 
 /** What a header can ask the service to do (design sections 7.1, 8). Keeps the UI free of IDE calls. */
 interface FolderTabsNavigator {
-    fun openFile(file: VirtualFile)
-    fun openGroup(group: DirectoryGroupModel)
+    /**
+     * Open [file] in the split pane of the header that was clicked: [pane] is that header's editor
+     * component (design section 13). `null` leaves the pane choice to the IDE.
+     */
+    fun openFile(file: VirtualFile, pane: JComponent?)
+
+    /** Open the last active file of [group] (design section 8.2), in [pane] like [openFile]. */
+    fun openGroup(group: DirectoryGroupModel, pane: JComponent?)
 
     /** Close [file] the way the IDE would from a tab inside [headerContext] (design section 15). */
     fun closeFile(file: VirtualFile, headerContext: DataContext)

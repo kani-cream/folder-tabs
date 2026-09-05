@@ -20,7 +20,8 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
 
     /** A FileEditor whose `equals` says every instance is equal — the registry must not care. */
     private class EqualToEveryoneEditor(private val file: VirtualFile?) : UserDataHolderBase(), FileEditor {
-        override fun getComponent(): JComponent = JPanel()
+        private val component = JPanel()
+        override fun getComponent(): JComponent = component
         override fun getPreferredFocusedComponent(): JComponent? = null
         override fun getName(): String = "fake"
         override fun setState(state: FileEditorState) = Unit
@@ -35,8 +36,8 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
     }
 
     private object NoopNavigator : FolderTabsNavigator {
-        override fun openFile(file: VirtualFile) = Unit
-        override fun openGroup(group: DirectoryGroupModel) = Unit
+        override fun openFile(file: VirtualFile, pane: JComponent?) = Unit
+        override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) = Unit
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit
@@ -65,5 +66,50 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
         assertSame(p2, registry.unregister(e2))
         assertNull(registry.unregister(e2))
         assertEquals(0, registry.size)
+    }
+
+    // ---- design section 13 (v1.3): pane attribution ----
+
+    fun testAttributionIsPerEditorIdentity() {
+        val a = LightVirtualFile("a.txt")
+        val registry = EditorHeaderRegistry()
+        val ea = EqualToEveryoneEditor(a)
+        val ea2 = EqualToEveryoneEditor(a) // a is open in both panes
+        listOf(ea, ea2).forEach { registry.register(it, panel(a)) }
+
+        assertNull(registry.paneOf(ea))
+        registry.attribute(ea, "L")
+        registry.attribute(ea2, "R")
+
+        assertEquals("L", registry.paneOf(ea))
+        assertEquals("R", registry.paneOf(ea2))
+    }
+
+    fun testAttributionOfAnUnregisteredEditorIsIgnored() {
+        val registry = EditorHeaderRegistry()
+        val e = EqualToEveryoneEditor(LightVirtualFile("a.txt"))
+        registry.attribute(e, "L")
+        assertNull(registry.paneOf(e))
+    }
+
+    fun testUnregisterDropsTheAttribution() {
+        val a = LightVirtualFile("a.txt")
+        val registry = EditorHeaderRegistry()
+        val ea = EqualToEveryoneEditor(a)
+        registry.register(ea, panel(a))
+        registry.attribute(ea, "L")
+        registry.unregister(ea)
+        assertNull(registry.paneOf(ea))
+    }
+
+    fun testEditorOwningFindsTheEditorBehindItsComponent() {
+        val a = LightVirtualFile("a.txt")
+        val registry = EditorHeaderRegistry()
+        val ea = EqualToEveryoneEditor(a)
+        val eb = EqualToEveryoneEditor(LightVirtualFile("b.txt"))
+        registry.register(ea, panel(a))
+        registry.register(eb, panel(eb.file!!))
+        assertSame(ea, registry.editorOwning(ea.component))
+        assertNull(registry.editorOwning(JPanel()))
     }
 }

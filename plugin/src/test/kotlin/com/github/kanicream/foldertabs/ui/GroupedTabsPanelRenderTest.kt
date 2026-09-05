@@ -11,17 +11,21 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.Component
 import java.awt.Container
 import java.awt.event.MouseEvent
+import javax.swing.JComponent
+import javax.swing.JPanel
 
 /** Issue #16: group tabs must be keyed by a stable identity so a modified-flag flip does not rebuild the strip. */
 class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
 
     private class RecordingNavigator : FolderTabsNavigator {
         val openedGroups = mutableListOf<DirectoryGroupModel>()
+        val openedFiles = mutableListOf<VirtualFile>()
+        val panes = mutableListOf<JComponent?>()
         val reordered = mutableListOf<List<DirectoryGroupModel>>()
         val reorderedFiles = mutableListOf<Pair<DirectoryGroupModel, List<VirtualFile>>>()
         val closedGroups = mutableListOf<DirectoryGroupModel>()
-        override fun openFile(file: VirtualFile) = Unit
-        override fun openGroup(group: DirectoryGroupModel) { openedGroups += group }
+        override fun openFile(file: VirtualFile, pane: JComponent?) { openedFiles += file; panes += pane }
+        override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) { openedGroups += group; panes += pane }
         override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) { closedGroups += group }
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) { reordered += groupsInNewOrder }
@@ -46,8 +50,8 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
     private fun model(modified: VirtualFile? = null): GroupedTabsModel =
         GroupedTabsModel(listOf(group(dirOne, a, b, modified = modified), group(dirTwo, c, modified = modified)))
 
-    private fun panel(navigator: FolderTabsNavigator = RecordingNavigator()): GroupedTabsPanel =
-        GroupedTabsPanel(project, a, navigator).also { Disposer.register(testRootDisposable, it) }
+    private fun panel(navigator: FolderTabsNavigator = RecordingNavigator(), pane: JComponent? = null): GroupedTabsPanel =
+        GroupedTabsPanel(project, a, navigator, editorFocusTarget = { pane }).also { Disposer.register(testRootDisposable, it) }
 
     private fun groupInfos(panel: GroupedTabsPanel) = panel.stripsForTest().first().tabInfosForTest()
     private fun fileInfos(panel: GroupedTabsPanel) = panel.stripsForTest().last().tabInfosForTest()
@@ -100,6 +104,31 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
         assertEquals(1, navigator.openedGroups.size)
         assertEquals("two", navigator.openedGroups.single().displayName)
         assertTrue("must be the current group value, not the stale one", navigator.openedGroups.single().files.single().modified)
+    }
+
+    private fun fileLabels(panel: GroupedTabsPanel) =
+        descendants(panel.stripsForTest().last().component).filter { it.javaClass.simpleName == "TabLabel" }.toList()
+
+    // ---- issue #29: clicks name the header's own pane so the file opens there ----
+
+    fun testClickingAGroupPassesTheHeadersPane() {
+        val navigator = RecordingNavigator()
+        val pane = JPanel()
+        val panel = panel(navigator, pane)
+        panel.render(model())
+        click(groupLabels(panel)[1])
+        assertEquals("two", navigator.openedGroups.single().displayName)
+        assertSame(pane, navigator.panes.single())
+    }
+
+    fun testClickingAFilePassesTheHeadersPane() {
+        val navigator = RecordingNavigator()
+        val pane = JPanel()
+        val panel = panel(navigator, pane)
+        panel.render(model())
+        click(fileLabels(panel)[1]) // b; the header's own file a is not re-opened
+        assertEquals(listOf(b), navigator.openedFiles)
+        assertSame(pane, navigator.panes.single())
     }
 
     fun testReorderKeysResolveToCurrentGroups() {
