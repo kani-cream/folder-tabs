@@ -61,4 +61,12 @@ class GroupedTabsPanelActiveTest : BasePlatformTestCase() {
         panel.stripsForTest().flatMap { it.tabInfosForTest() }.also { assertTrue(it.isNotEmpty()) }
             .forEach { assertSame(editor, it.getPreferredFocusableComponent()) }
     }
+
+    fun testShownCallbackFiresWhenTheHeaderJoinsAWindow() {
+        var shown = 0
+        val panel = GroupedTabsPanel(project, LightVirtualFile("a.txt"), NoopNavigator, onShown = { shown++ })
+        Disposer.register(testRootDisposable, panel)
+        panel.shownForTest()
+        assertEquals(1, shown)
+    }
 }

@@ -25,6 +25,6 @@ class FolderTabsEditorListener : FileEditorManagerListener {
     override fun selectionChanged(event: FileEditorManagerEvent) {
         val project = event.manager.project
         if (project.isDisposed) return
-        GroupedTabsProjectService.getInstance(project).onSelectionChanged(event.newFile)
+        GroupedTabsProjectService.getInstance(project).onSelectionChanged(event.newFile, event.newEditor)
     }
 }

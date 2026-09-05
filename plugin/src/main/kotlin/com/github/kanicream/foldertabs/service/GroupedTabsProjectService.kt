@@ -1,6 +1,7 @@
 package com.github.kanicream.foldertabs.service
 
 import com.github.kanicream.foldertabs.editor.EditorHeaderRegistry
+import com.github.kanicream.foldertabs.editor.PaneModelCache
 import com.github.kanicream.foldertabs.grouping.DirectoryGroupBuilder
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
@@ -13,6 +14,7 @@ import com.github.kanicream.foldertabs.ui.FolderTabsNavigator
 import com.github.kanicream.foldertabs.ui.GroupedTabsPanel
 import com.github.kanicream.foldertabs.vfs.VfsChangeClassifier
 import com.github.kanicream.foldertabs.vfs.VfsChangeSummary
+import com.intellij.ide.DataManager
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ApplicationManager
@@ -35,9 +37,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JComponent
 
 /**
- * Project-level hub (design section 18): owns the model, the last-active tracker and the
+ * Project-level hub (design section 18): owns the model, the last-active trackers and the
  * editor-header registry; rebuilds the model from the open files and pushes it to every
  * header. Mutating methods run on the EDT; [requestRefresh] may be called from any thread.
+ *
+ * Split panes (design section 13, v1.3): [model] stays project-wide, but every header renders the
+ * projection for its own pane. A header's pane is resolved whenever the header joins a window,
+ * through the `editorWindow` data key the platform's tab container publishes into the data
+ * context of everything inside that pane — an opaque identity, never a platform type.
  */
 @Service(Service.Level.PROJECT)
 class GroupedTabsProjectService(private val project: Project) : Disposable, FolderTabsNavigator {
@@ -45,7 +52,14 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     private val log = Logger.getInstance(GroupedTabsProjectService::class.java)
 
     private val registry = EditorHeaderRegistry()
-    private val lastActive = LastActiveFileTracker()
+
+    /** Last active file per group, per pane; the `null` pane is the project-wide fallback. */
+    private var lastActiveByPane: Map<Any?, LastActiveFileTracker> = mapOf(null to LastActiveFileTracker())
+
+    /** Resolves the split pane behind a header (editor + header component); `null` = unknown. */
+    private var paneResolver: (FileEditor, JComponent) -> Any? = { _, header ->
+        DataManager.getInstance().getDataContext(header).getData(EditorTabCloser.EDITOR_WINDOW)
+    }
     private val closer = EditorTabCloser(project)
     private val opener = EditorPaneOpener(project)
     private val refreshPending = AtomicBoolean(false)
@@ -88,16 +102,29 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     fun onFileClosed(file: VirtualFile) {
         // Editors of a closed file are released through their Disposable hook (see
         // attachHeader) and by pruneStaleHeaders(); do not rely on event ordering here.
-        if (editorManager().getAllEditors(file).isEmpty()) lastActive.forget(file)
+        if (editorManager().getAllEditors(file).isEmpty()) lastActiveByPane.values.forEach { it.forget(file) }
         requestRefresh()
     }
 
-    fun onSelectionChanged(newFile: VirtualFile?) {
-        newFile?.let(lastActive::remember)
+    fun onSelectionChanged(newFile: VirtualFile?, newEditor: FileEditor? = null) {
+        if (newFile != null) rememberLastActive(newFile, newEditor)
         if (!enabled) return
         newFile?.let(::attachHeaders)
         requestRefresh()
     }
+
+    private fun rememberLastActive(file: VirtualFile, editor: FileEditor?) {
+        val pane = editor?.let { paneOf(it) }
+        trackerFor(null).remember(file)
+        if (pane != null) trackerFor(pane).remember(file)
+    }
+
+    private fun trackerFor(pane: Any?): LastActiveFileTracker =
+        lastActiveByPane[pane] ?: LastActiveFileTracker().also { lastActiveByPane = lastActiveByPane + (pane to it) }
+
+    /** The pane of [editor]: the attributed one, else resolved from its component right now. */
+    private fun paneOf(editor: FileEditor): Any? =
+        registry.paneOf(editor) ?: runCatching { paneResolver(editor, editor.component) }.getOrNull()
 
     /** Safety net for editors restored before the listener saw them. */
     fun attachAllOpenEditors() {
@@ -165,7 +192,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     override fun openFile(file: VirtualFile, pane: JComponent?) = opener.open(file, pane)
 
     override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) {
-        lastActive.targetFor(group)?.let { openFile(it, pane) }
+        val paneKey = pane?.let(registry::editorOwning)?.let(registry::paneOf)
+        val target = trackerFor(paneKey).targetFor(group) ?: trackerFor(null).targetFor(group)
+        target?.let { openFile(it, pane) }
     }
 
     override fun closeFile(file: VirtualFile, headerContext: DataContext) = closer.close(file, headerContext)
@@ -204,13 +233,17 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         val policy = FolderTabsSettings.getInstance().labelPolicy(project.name)
         val groupOrder = GroupOrderState.getInstance(project).savedUrls
         val fileOrder = FileOrderState.getInstance(project).saved
-        model = DirectoryGroupBuilder(
+        val builder = DirectoryGroupBuilder(
             project.basePath, policy, groupOrder,
             savedFileOrder = { key -> FileOrder.savedFor(fileOrder, key) },
-        ).build(editorManager().openFiles.toList())
+        )
+        val openFiles = editorManager().openFiles.toList()
+        model = builder.build(openFiles)
         rebuildCount++
+        // Every header renders its own pane's projection (design section 13); same pane, same model.
+        val paneModels = PaneModelCache(openFiles, registry.filesByPane(), model, builder::build)
         registry.all().forEach { (editor, panel) ->
-            runCatching { panel.render(model) }
+            runCatching { panel.render(paneModels.modelFor(registry.paneOf(editor))) }
                 .onFailure { log.warn("Folder Tabs: header render failed for ${editor.file}", it) }
         }
     }
@@ -229,6 +262,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
             project, file, this,
             isEditorActive = { UIUtil.isFocusAncestor(editor.component) },
             editorFocusTarget = { editor.preferredFocusedComponent ?: editor.component },
+            onShown = { onHeaderShown(editor) },
         )
         Disposer.register(this, panel)
         runCatching {
@@ -237,6 +271,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
             // Release the header when the platform disposes the editor (design section 11.2).
             Disposer.register(editor, Disposable { detachHeader(editor) })
             panel.render(model)
+            if (panel.component.isShowing) onHeaderShown(editor)
         }.onFailure {
             // Fail-safe: the standard editor keeps working without the header (design section 23).
             log.warn("Folder Tabs: could not attach header to editor for $file", it)
@@ -244,6 +279,20 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
             runCatching { editorManager().removeTopComponent(editor, panel.component) }
             Disposer.dispose(panel)
         }
+    }
+
+    /**
+     * The header of [editor] joined a window: (re)resolve its split pane (design section 13). Tabs
+     * can move between splits, so the pane is re-resolved on every show; a change re-renders.
+     */
+    private fun onHeaderShown(editor: FileEditor) {
+        val panel = registry.panelOf(editor) ?: return
+        val pane = runCatching { paneResolver(editor, panel.component) }
+            .onFailure { log.debug("Folder Tabs: pane resolution failed for ${editor.file}", it) }
+            .getOrNull() ?: return
+        if (registry.paneOf(editor) == pane) return
+        registry.attribute(editor, pane)
+        requestRefresh()
     }
 
     /** Drops headers whose editor the platform no longer lists (safety net for missed disposals). */
@@ -267,6 +316,19 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     override fun dispose() {
         registry.all().forEach { (editor, _) -> detachHeader(editor) }
     }
+
+    // ---- test hooks ----
+
+    /** Test hook: replaces the pane resolver (a light test has no split windows). */
+    internal var paneResolverForTest: (FileEditor, JComponent) -> Any?
+        get() = paneResolver
+        set(value) { paneResolver = value }
+
+    /** Test hook: what the header's `addNotify` triggers. */
+    internal fun headerShownForTest(editor: FileEditor) = onHeaderShown(editor)
+
+    /** Test hook: the header attached to [editor]. */
+    internal fun panelForTest(editor: FileEditor): GroupedTabsPanel = registry.panelOf(editor)!!
 
     companion object {
         fun getInstance(project: Project): GroupedTabsProjectService =

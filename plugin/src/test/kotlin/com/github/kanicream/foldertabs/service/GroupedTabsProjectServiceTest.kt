@@ -2,7 +2,9 @@ package com.github.kanicream.foldertabs.service
 
 import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
@@ -101,5 +103,62 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         flush()
         assertEquals(c, editors.selectedFiles.first())
         assertNotSame(a, editors.selectedFiles.first())
+    }
+
+    // ---- design section 13 (v1.3): one model per split pane ----
+
+    private fun editorOf(file: VirtualFile): FileEditor = editors.getAllEditors(file).single()
+
+    private fun groupsShownFor(file: VirtualFile) =
+        service.panelForTest(editorOf(file)).renderedModelForTest().groups.map { it.displayName }
+
+    /** Pane by file-name prefix: `l_*` → "L", `r_*` → "R", anything else unattributed. */
+    private fun usePrefixPanes() {
+        service.paneResolverForTest = { editor, _ ->
+            when (editor.file?.name?.substringBefore('_')) { "l" -> "L"; "r" -> "R"; else -> null }
+        }
+    }
+
+    fun testEachHeaderShowsOnlyItsPanesFilesPlusUnattributedOnes() {
+        usePrefixPanes()
+        val l = open("users/l_a.go")
+        val r = open("orders/r_b.go")
+        val u = open("misc/u_c.go")
+        listOf(l, r, u).forEach { service.headerShownForTest(editorOf(it)) }
+        flush()
+        assertEquals(listOf("misc", "users"), groupsShownFor(l))
+        assertEquals(listOf("misc", "orders"), groupsShownFor(r))
+        assertEquals("unattributed header sees everything", listOf("misc", "orders", "users"), groupsShownFor(u))
+        assertEquals("project-wide model is unchanged", listOf("misc", "orders", "users"), service.model.groups.map { it.displayName })
+    }
+
+    fun testAHeaderShownAgainInAnotherPaneMovesItsFile() {
+        usePrefixPanes()
+        val l = open("users/l_a.go")
+        val r = open("orders/r_b.go")
+        service.headerShownForTest(editorOf(l))
+        service.headerShownForTest(editorOf(r))
+        flush()
+        assertEquals(listOf("users"), groupsShownFor(l))
+        service.paneResolverForTest = { _, _ -> "R" } // e.g. the tab was dragged into the other split
+        service.headerShownForTest(editorOf(l))
+        flush()
+        assertEquals(listOf("orders", "users"), groupsShownFor(l))
+        assertEquals(listOf("orders", "users"), groupsShownFor(r))
+    }
+
+    fun testLastActiveFileIsRememberedPerPane() {
+        usePrefixPanes()
+        val a = open("users/l_a.go")
+        val c = open("users/l_c.go")
+        val r = open("users/r_x.go")
+        listOf(a, c, r).forEach { service.headerShownForTest(editorOf(it)) }
+        flush()
+        service.onSelectionChanged(c, editorOf(c)) // pane L last saw c
+        service.onSelectionChanged(r, editorOf(r)) // pane R last saw r
+        val usersInL = service.panelForTest(editorOf(a)).renderedModelForTest().groups.single()
+        service.openGroup(usersInL, pane = editorOf(a).component)
+        flush()
+        assertEquals(c, editors.selectedFiles.first())
     }
 }

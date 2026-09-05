@@ -150,7 +150,7 @@ huga/users
 - グループ選択からファイル選択へのナビゲーション
 - Group再選択時にLast Active Fileを復元
 - File Tab選択で通常のIntelliJ Editorを開く
-- Editor split が存在してもEditor本体を壊さず安全に動作する
+- Editor split が存在してもEditor本体を壊さず安全に動作する。各paneのHeaderはそのpaneで開いているファイルだけを表示する（v1.3、13参照）
 - `Tab placement: None` と標準タブ併用の両方で利用できる
 - Project外ファイル / Scratch等も観測可能な範囲で通常扱いする
 - Dark / Light Theme とUI scaleに追従する
@@ -818,22 +818,42 @@ JetBrains自身もTabless UIを正式な利用方法として案内している�
 
 ## 13. Split Editor
 
-Project全体のopen filesは共通Group Modelとして扱う。
+### 13.0 v1.3 以降: paneごとに独立したHeader
 
-ただしEditor Headerは各FileEditorへ個別に設置される。
+v1.2までは「Project全体のopen filesを共通Group Modelとして扱い、全Headerが同じ内容を表示する」方針だったが、分割エディタで左右のHeaderが同じタブ列になるのは期待と異なる（左ペインにしか無いファイルが右ペインのHeaderにも出る）。v1.3からは **各Headerは自分のpaneで開いているファイルだけをGroup化して表示する**。
+
+#### paneの識別（Stable Public API Only）
+
+- paneの一覧やpaneごとのファイル一覧を返す公開APIは無い（`FileEditorManagerEx.getWindows()` / `EditorWindow.getFileList()` は2.1で禁止）。
+- 代わりに、Close（15.2）と同じ **`editorWindow` データキー** を使う。各paneのタブコンテナ（`EditorTabs`）が `DataSink` 経由でこのキーを公開しており（2026.2 bytecodeで確認。公開しているのは PROJECT / editorWindow / FILE_EDITOR / LAST_ACTIVE_FILE_EDITOR / VIRTUAL_FILE / HELP_ID のみで、paneのファイル一覧は無い）、`DataManager.getDataContext(headerComponent)` で **Header自身のコンポーネント** から取得できる。値は同一性比較にだけ使う不透明なオブジェクトで、`EditorWindow` 型は参照しない。
+- JBTabsは非選択タブのコンポーネントをコンテナから外す（`JBTabsImpl.updateContainer` が `Container.remove`）。そのためHeaderは **表示された瞬間**（`addNotify`）にしかpaneを解決できない。`GroupedTabsPanel` は `onShown` でServiceへ通知し、Serviceが `EditorHeaderRegistry` に「editor → pane」を記録する。タブは分割間を移動できるので、表示のたびに再解決し、変わっていれば再描画する。
+
+#### paneごとのModel
 
 ```text
-Project Group Model
-       │
-       ├ Header A - Split Left
-       └ Header B - Split Right
+open files (Project全体)                 editor → pane（Registry）
+        │                                        │
+        └──────── PanePartition.filesFor(pane) ──┘
+                          │
+              DirectoryGroupBuilder（Group順・File順の保存はProject共通）
+                          │
+              pane Model（同じpaneのHeaderは同じModelを共有: PaneModelCache）
 ```
 
-各Headerのactive fileは、そのHeaderが属するEditorの表示ファイルを優先する。
+- paneに帰属したeditorのファイル ＝ そのpaneのファイル。
+- **一度も表示されていないファイル**（セッション復元直後の非選択タブ、バックグラウンドで開いたタブ）はどのpaneにも帰属しない。エディタは遅延初期化されるため `FileEditor` 自体が無いこともある。これらは **全paneに表示する**（何も隠さない安全側）。表示された時点で正しいpaneへ移る。
+- paneが未解決のHeader（`null`）はProject全体のModelを表示する（v1.2までと同じ）。
+- `GroupedTabsProjectService.model` はProject全体のModelのまま維持し、modified更新やテストの基準にする。
 
-Group/File Tabをクリックした場合は、ユーザーが操作したHeader側のEditor領域へファイルを開くことを理想挙動とする。
+#### paneごとのLast Active File
 
-Stable Public APIだけでpaneを明示指定できない場合は、対象Header側へfocusを移してから標準 `openFile()` を呼び、以降のpane選択はIDE標準挙動へ委ねる。
+8.3のLast Active Fileはpaneごとに持つ（`null` paneはProject共通のfallback）。selectionChangedで渡される `FileEditor` からpaneを解決して記録し、Group Tabクリック時はHeaderのpaneの履歴を優先する。
+
+#### 開く先のpane
+
+Group/File Tabをクリックした場合は、ユーザーが操作したHeader側のEditor領域へファイルを開く。
+
+Stable Public APIだけでpaneを明示指定できないので、対象Header側へfocusを移してから標準 `openFile()` を呼び、以降のpane選択はIDE標準挙動へ委ねる。
 
 #### 実装（v1.3、Issue #29）
 
@@ -849,6 +869,10 @@ Stable Public APIだけでpaneを明示指定できない場合は、対象Heade
 Split制御のために `FileEditorManagerEx` / `EditorWindow` は使用しない。
 
 Stable Public APIだけで現在splitへの確実なopenが保証できないケースでは、IDE標準のopen挙動をそのまま採用する。この制約を解消するためにInternal APIへfallbackしてはならない。
+
+#### テスト
+
+軽量テストフィクスチャは分割ウィンドウを作れないため、pane解決は差し替え可能（`paneResolverForTest`）にして `GroupedTabsProjectServiceTest` で検証し、実際の分割はサンドボックスで手動確認する。
 
 ### 13.1 v0.1着手時のSplit / Tabless PoC
 

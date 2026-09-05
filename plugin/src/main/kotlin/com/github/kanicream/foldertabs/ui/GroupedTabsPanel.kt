@@ -38,6 +38,8 @@ class GroupedTabsPanel(
     private val navigator: FolderTabsNavigator,
     private val isEditorActive: () -> Boolean = { true },
     private val editorFocusTarget: () -> JComponent? = { null },
+    /** Called whenever the header (re)joins a window: the owner resolves the split pane then (design section 13). */
+    private val onShown: () -> Unit = {},
 ) : Disposable {
 
     private val groupTabs = TabStrip(
@@ -60,7 +62,12 @@ class GroupedTabsPanel(
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addPropertyChangeListener(FOCUS_OWNER_PROPERTY, focusListener)
     }
 
-    val component: JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
+    val component: JComponent = object : JBPanel<JBPanel<*>>(BorderLayout()) {
+        override fun addNotify() {
+            super.addNotify()
+            onShown()
+        }
+    }.apply {
         add(groupTabs.component, BorderLayout.NORTH)
         add(fileTabs.component, BorderLayout.SOUTH)
     }
@@ -141,6 +148,12 @@ class GroupedTabsPanel(
         val group = groupFor(key) ?: return
         navigator.closeGroup(group, context)
     }
+
+    /** Test hook: the header joined a window. */
+    internal fun shownForTest() = onShown()
+
+    /** Test hook: the model of the last [render]. */
+    internal fun renderedModelForTest(): GroupedTabsModel = rendered
 
     /** Test hook: what JBTabs' drag-reorder reports (the tab keys in their new order). */
     internal fun groupsReorderedForTest(keysInNewOrder: List<Any>) = onGroupsReordered(keysInNewOrder)
