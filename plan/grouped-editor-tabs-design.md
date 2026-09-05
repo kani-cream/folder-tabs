@@ -1413,6 +1413,18 @@ Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契�
 
 ---
 
+### v1.3 - Split & Reorder（2026-09-05）
+
+Reddit / 利用者フィードバックへの対応:
+
+- File TabsのDrag & Drop並べ替えとProject単位の順序保持（Issue #23、7.2）
+- 分割エディタ: クリックしたHeader側のpaneへ開く（Issue #29、`EditorPaneOpener`、13）
+- 分割エディタ: 各paneのHeaderにそのpaneのファイルだけを表示（Issue #29、13.0、2.1のv1.3例外）
+
+サンドボックスでの手動確認（ファイルタブDnD → refresh / 再起動後の順序、分割時の左右独立表示、右Headerのクリックが右paneに開く、単一paneの非退行）を利用者が実施し、idea.logにプラグイン由来の例外が無いことを確認して各PRをマージした。
+
+---
+
 ## 26. 受け入れ基準
 
 以下をすべて満たした時点でv1.0とする。**2026-08-21 時点で全項目を満たしたことを確認し、v1.0 を確定した**（Grouping / Navigation / Sync / UI はサンドボックス手動確認＋platform test、Safety / API Stability は Plugin Verifier ゲート付き CI と `tools/api_audit.py` で確認）。
