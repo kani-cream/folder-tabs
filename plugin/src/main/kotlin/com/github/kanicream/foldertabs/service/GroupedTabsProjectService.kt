@@ -27,6 +27,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.util.ui.UIUtil
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
@@ -41,10 +42,11 @@ import javax.swing.JComponent
  * editor-header registry; rebuilds the model from the open files and pushes it to every
  * header. Mutating methods run on the EDT; [requestRefresh] may be called from any thread.
  *
- * Split panes (design section 13, v1.3): [model] stays project-wide, but every header renders the
+ * Split panes (design section 13.0): [model] stays project-wide, but every header renders the
  * projection for its own pane. A header's pane is resolved whenever the header joins a window,
  * through the `editorWindow` data key the platform's tab container publishes into the data
- * context of everything inside that pane — an opaque identity, never a platform type.
+ * context of everything inside that pane; the pane's files are then read from the IDE's own
+ * window list ([paneFiles]). Both are used read-only (design section 2.1, v1.3 exception).
  */
 @Service(Service.Level.PROJECT)
 class GroupedTabsProjectService(private val project: Project) : Disposable, FolderTabsNavigator {
@@ -59,6 +61,15 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     /** Resolves the split pane behind a header (editor + header component); `null` = unknown. */
     private var paneResolver: (FileEditor, JComponent) -> Any? = { _, header ->
         DataManager.getInstance().getDataContext(header).getData(EditorTabCloser.EDITOR_WINDOW)
+    }
+
+    /**
+     * The files the IDE lists in [pane], in its tab order; `null` when the IDE no longer lists
+     * that pane. The pane is matched by identity against the IDE's windows: the only place the
+     * window type is named (design section 2.1, v1.3 exception: `getWindows` / `getFileList`).
+     */
+    private var paneFiles: (pane: Any) -> List<VirtualFile>? = { pane ->
+        FileEditorManagerEx.getInstanceEx(project).windows.firstOrNull { it === pane }?.fileList
     }
     private val closer = EditorTabCloser(project)
     private val opener = EditorPaneOpener(project)
@@ -240,13 +251,19 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         val openFiles = editorManager().openFiles.toList()
         model = builder.build(openFiles)
         rebuildCount++
-        // Every header renders its own pane's projection (design section 13); same pane, same model.
-        val paneModels = PaneModelCache(openFiles, registry.filesByPane(), model, builder::build)
+        // Every header renders its own pane's projection (design section 13.0); same pane, same model.
+        val paneModels = PaneModelCache(model, ::filesOfPane, builder::build)
         registry.all().forEach { (editor, panel) ->
             runCatching { panel.render(paneModels.modelFor(registry.paneOf(editor))) }
                 .onFailure { log.warn("Folder Tabs: header render failed for ${editor.file}", it) }
         }
     }
+
+    /** Fail-safe (design section 23): a listing failure falls back to the project-wide model. */
+    private fun filesOfPane(pane: Any): List<VirtualFile>? =
+        runCatching { paneFiles(pane) }
+            .onFailure { log.warn("Folder Tabs: could not list the files of a split pane", it) }
+            .getOrNull()
 
     // ---- headers ----------------------------------------------------------------------
 
@@ -323,6 +340,11 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     internal var paneResolverForTest: (FileEditor, JComponent) -> Any?
         get() = paneResolver
         set(value) { paneResolver = value }
+
+    /** Test hook: replaces the IDE's per-pane file listing. */
+    internal var paneFilesForTest: (Any) -> List<VirtualFile>?
+        get() = paneFiles
+        set(value) { paneFiles = value }
 
     /** Test hook: what the header's `addNotify` triggers. */
     internal fun headerShownForTest(editor: FileEditor) = onHeaderShown(editor)

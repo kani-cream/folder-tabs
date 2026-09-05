@@ -105,46 +105,66 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         assertNotSame(a, editors.selectedFiles.first())
     }
 
-    // ---- design section 13 (v1.3): one model per split pane ----
+    // ---- design section 13.0 (v1.3): one model per split pane ----
 
     private fun editorOf(file: VirtualFile): FileEditor = editors.getAllEditors(file).single()
 
     private fun groupsShownFor(file: VirtualFile) =
         service.panelForTest(editorOf(file)).renderedModelForTest().groups.map { it.displayName }
 
-    /** Pane by file-name prefix: `l_*` → "L", `r_*` → "R", anything else unattributed. */
+    /**
+     * Fakes the two things a light test cannot get from the platform: the pane a header sits in
+     * (`l_*` → "L", `r_*` → "R") and the IDE's per-pane file list (every open file with that prefix).
+     */
     private fun usePrefixPanes() {
-        service.paneResolverForTest = { editor, _ ->
-            when (editor.file?.name?.substringBefore('_')) { "l" -> "L"; "r" -> "R"; else -> null }
-        }
+        fun paneOfName(name: String?) = when (name?.substringBefore('_')) { "l" -> "L"; "r" -> "R"; else -> null }
+        service.paneResolverForTest = { editor, _ -> paneOfName(editor.file?.name) }
+        service.paneFilesForTest = { pane -> editors.openFiles.filter { paneOfName(it.name) == pane } }
     }
 
-    fun testEachHeaderShowsOnlyItsPanesFilesPlusUnattributedOnes() {
+    fun testEachHeaderShowsOnlyTheFilesOfItsPane() {
         usePrefixPanes()
         val l = open("users/l_a.go")
         val r = open("orders/r_b.go")
-        val u = open("misc/u_c.go")
-        listOf(l, r, u).forEach { service.headerShownForTest(editorOf(it)) }
-        flush()
-        assertEquals(listOf("misc", "users"), groupsShownFor(l))
-        assertEquals(listOf("misc", "orders"), groupsShownFor(r))
-        assertEquals("unattributed header sees everything", listOf("misc", "orders", "users"), groupsShownFor(u))
-        assertEquals("project-wide model is unchanged", listOf("misc", "orders", "users"), service.model.groups.map { it.displayName })
-    }
-
-    fun testAHeaderShownAgainInAnotherPaneMovesItsFile() {
-        usePrefixPanes()
-        val l = open("users/l_a.go")
-        val r = open("orders/r_b.go")
-        service.headerShownForTest(editorOf(l))
-        service.headerShownForTest(editorOf(r))
+        listOf(l, r).forEach { service.headerShownForTest(editorOf(it)) }
         flush()
         assertEquals(listOf("users"), groupsShownFor(l))
-        service.paneResolverForTest = { _, _ -> "R" } // e.g. the tab was dragged into the other split
+        assertEquals(listOf("orders"), groupsShownFor(r))
+        assertEquals("project-wide model is unchanged", listOf("orders", "users"), service.model.groups.map { it.displayName })
+    }
+
+    fun testAHeaderWhosePaneIsUnknownShowsEverything() {
+        usePrefixPanes()
+        val l = open("users/l_a.go")
+        val u = open("misc/u_c.go") // no pane for this header
+        listOf(l, u).forEach { service.headerShownForTest(editorOf(it)) }
+        flush()
+        assertEquals(listOf("misc", "users"), groupsShownFor(u))
+    }
+
+    fun testAPaneTheIdeNoLongerListsFallsBackToEverything() {
+        usePrefixPanes()
+        val l = open("users/l_a.go")
+        open("orders/r_b.go")
+        service.headerShownForTest(editorOf(l))
+        service.paneFilesForTest = { null } // e.g. the window was just disposed
+        flush()
+        assertEquals(listOf("orders", "users"), groupsShownFor(l))
+    }
+
+    fun testAHeaderShownAgainInAnotherPaneFollowsIt() {
+        usePrefixPanes()
+        val l = open("users/l_a.go")
+        val r = open("orders/r_b.go")
+        listOf(l, r).forEach { service.headerShownForTest(editorOf(it)) }
+        flush()
+        assertEquals(listOf("users"), groupsShownFor(l))
+        // The tab was dragged into the other split: its header now resolves to R and the IDE lists it there.
+        service.paneResolverForTest = { _, _ -> "R" }
+        service.paneFilesForTest = { pane -> if (pane == "R") editors.openFiles.toList() else emptyList() }
         service.headerShownForTest(editorOf(l))
         flush()
         assertEquals(listOf("orders", "users"), groupsShownFor(l))
-        assertEquals(listOf("orders", "users"), groupsShownFor(r))
     }
 
     fun testLastActiveFileIsRememberedPerPane() {

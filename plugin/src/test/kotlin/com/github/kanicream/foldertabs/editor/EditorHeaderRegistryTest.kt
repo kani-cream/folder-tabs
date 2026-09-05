@@ -70,22 +70,26 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
 
     // ---- design section 13 (v1.3): pane attribution ----
 
-    fun testAttributionIsPerEditorAndGroupsFilesByPane() {
+    fun testAttributionIsPerEditorIdentity() {
         val a = LightVirtualFile("a.txt")
-        val b = LightVirtualFile("b.txt")
         val registry = EditorHeaderRegistry()
         val ea = EqualToEveryoneEditor(a)
-        val eb = EqualToEveryoneEditor(b)
         val ea2 = EqualToEveryoneEditor(a) // a is open in both panes
-        listOf(ea, eb, ea2).forEach { registry.register(it, panel(it.file!!)) }
+        listOf(ea, ea2).forEach { registry.register(it, panel(a)) }
 
         assertNull(registry.paneOf(ea))
         registry.attribute(ea, "L")
-        registry.attribute(eb, "R")
         registry.attribute(ea2, "R")
 
         assertEquals("L", registry.paneOf(ea))
-        assertEquals(mapOf<Any, Set<VirtualFile>>("L" to setOf(a), "R" to setOf(a, b)), registry.filesByPane())
+        assertEquals("R", registry.paneOf(ea2))
+    }
+
+    fun testAttributionOfAnUnregisteredEditorIsIgnored() {
+        val registry = EditorHeaderRegistry()
+        val e = EqualToEveryoneEditor(LightVirtualFile("a.txt"))
+        registry.attribute(e, "L")
+        assertNull(registry.paneOf(e))
     }
 
     fun testUnregisterDropsTheAttribution() {
@@ -96,7 +100,6 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
         registry.attribute(ea, "L")
         registry.unregister(ea)
         assertNull(registry.paneOf(ea))
-        assertTrue(registry.filesByPane().isEmpty())
     }
 
     fun testEditorOwningFindsTheEditorBehindItsComponent() {

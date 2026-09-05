@@ -11,8 +11,8 @@ import java.util.IdentityHashMap
  * added twice (design section 11.2). Keys compare by identity (an [IdentityHashMap]): one
  * header per editor instance, whatever a FileEditor implementation's `equals` says.
  *
- * Also remembers which split pane each editor was last shown in (design section 13, v1.3): the
- * pane is an opaque identity resolved by the service, never a platform type.
+ * Also remembers which split pane each editor was last shown in (design section 13.0): the
+ * pane is an opaque identity resolved by the service and only ever compared by identity.
  *
  * Immutable-style: every change replaces the backing map with a fresh copy. EDT only.
  */
@@ -50,13 +50,6 @@ class EditorHeaderRegistry {
     }
 
     fun paneOf(editor: FileEditor): Any? = panes[editor]
-
-    /** Files per pane, from the attributed editors that are still registered. */
-    fun filesByPane(): Map<Any, Set<VirtualFile>> =
-        panes.entries.fold(emptyMap()) { acc, (editor, pane) ->
-            val file = editor.file ?: return@fold acc
-            acc + (pane to (acc[pane].orEmpty() + file))
-        }
 
     fun all(): List<Pair<FileEditor, GroupedTabsPanel>> = panels.map { it.key to it.value }
 
