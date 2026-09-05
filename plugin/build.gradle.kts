@@ -52,6 +52,14 @@ intellijPlatform {
         name = "Folder Tabs"
         version = project.version.toString()
         changeNotes = """
+            <b>1.3.0</b>
+            <ul>
+              <li>File tabs can now be reordered by drag &amp; drop within their group, like the group tabs;
+                  the order is remembered per project and follows rename / move / delete.</li>
+              <li>Split editors: each pane's header now shows only the files open in that pane, in the
+                  IDE's own tab order, and clicking a group or file tab opens the file in the pane whose
+                  header you clicked (previously it could land in the other pane).</li>
+            </ul>
             <b>1.2.2</b>
             <ul>
               <li>No more jump on the first switch to a file after startup: the header's close buttons are
