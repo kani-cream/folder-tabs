@@ -64,7 +64,8 @@ are performed manually.
   editor tab (only the focused split pane is highlighted), file
   type icons, a `*` marker on modified files, full-path tooltips, single-row
   tabs with an overflow dropdown.
-- **IDE-friendly**: works with split editors, scratch and non-project files, light and
+- **IDE-friendly**: works with split editors (each pane's header shows only the files open
+  in that pane), scratch and non-project files, light and
   dark themes; can be turned off in `Settings > Tools > Folder Tabs`.
 
 ## Installation

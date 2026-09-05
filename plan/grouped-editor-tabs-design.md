@@ -67,6 +67,20 @@ Editor
 
 Experimental APIを「一時的に1件だけ許容する」といった例外運用は原則設けない。Stable Public APIだけでは要件を満たせない場合、Internal / Experimental APIへfallbackするのではなく、機能の縮小・別UI・fail-safeを選択する。
 
+#### v1.3 例外: paneごとのファイル一覧の読み取り
+
+分割エディタで「各paneのHeaderにそのpaneのファイルだけを表示する」（13.0）ために必要な「paneごとのファイル一覧」は、Stable Public APIには存在しない（公開APIで取れるのはpaneの識別子と選択中の1ファイルまで。表示履歴から推測する案は、未表示タブの扱いが破綻したため却下）。そのため次の **2メンバーに限り、読み取り専用で** 使用を許可する。
+
+```text
+com.intellij.openapi.fileEditor.ex.FileEditorManagerEx.getInstanceEx(project) / getWindows()
+com.intellij.openapi.fileEditor.impl.EditorWindow.getFileList()
+```
+
+- どちらも `@Deprecated` / `@ApiStatus.*` の注釈が無く（クラスにも無い。2026.2 で `tools/api_audit.py` により確認）、Plugin Verifier と Marketplace 検証は clean のまま
+- `EditorWindow` は **同一性比較と `getFileList()` の呼び出しにだけ** 使い、変数型・引数型として広めない。`openFile(file, window, ...)` / `closeFile` / `setCurrentWindow` / `getSplitters` など書き込み系・`EditorsSplitters`・`EditorComposite` は引き続き禁止
+- impl パッケージのため IDE 更新で変わり得る。`untilBuild` の固定と CI の Verifier で検出し、取得に失敗した場合は Project 全体のModelへ退避する（23）
+- この例外を他の機能へ拡大しない。追加が必要になったら本節を改訂してから使う
+
 IDE更新に対する耐性と JetBrains Marketplace での長期配布可能性を、短期的な機能実現より優先する。
 
 ### 2.2 標準Editor Tabsそのものは改造しない
@@ -150,7 +164,7 @@ huga/users
 - グループ選択からファイル選択へのナビゲーション
 - Group再選択時にLast Active Fileを復元
 - File Tab選択で通常のIntelliJ Editorを開く
-- Editor split が存在してもEditor本体を壊さず安全に動作する
+- Editor split が存在してもEditor本体を壊さず安全に動作する。各paneのHeaderはそのpaneで開いているファイルだけを表示する（v1.3、13参照）
 - `Tab placement: None` と標準タブ併用の両方で利用できる
 - Project外ファイル / Scratch等も観測可能な範囲で通常扱いする
 - Dark / Light Theme とUI scaleに追従する
@@ -818,22 +832,44 @@ JetBrains自身もTabless UIを正式な利用方法として案内している�
 
 ## 13. Split Editor
 
-Project全体のopen filesは共通Group Modelとして扱う。
+### 13.0 v1.3 以降: paneごとに独立したHeader
 
-ただしEditor Headerは各FileEditorへ個別に設置される。
+v1.2までは「Project全体のopen filesを共通Group Modelとして扱い、全Headerが同じ内容を表示する」方針だったが、分割エディタで左右のHeaderが同じタブ列になるのは期待と異なる（左ペインにしか無いファイルが右ペインのHeaderにも出る）。v1.3からは **各Headerは自分のpaneで開いているファイルだけをGroup化して表示する**。
+
+#### paneの識別と、paneのファイル一覧
+
+- **paneの識別子**: Close（15.2）と同じ **`editorWindow` データキー**。各paneのタブコンテナ（`EditorTabs`）が `DataSink` 経由でこのキーを公開しており（2026.2 bytecodeで確認。公開しているのは PROJECT / editorWindow / FILE_EDITOR / LAST_ACTIVE_FILE_EDITOR / VIRTUAL_FILE / HELP_ID のみ）、`DataManager.getDataContext(headerComponent)` で **Header自身のコンポーネント** から取得できる。
+- JBTabsは非選択タブのコンポーネントをコンテナから外す（`JBTabsImpl.updateContainer` が `Container.remove`）。そのためHeaderは **表示された瞬間**（`addNotify`）にpaneを解決する。`GroupedTabsPanel` は `onShown` でServiceへ通知し、Serviceが `EditorHeaderRegistry` に「editor → pane」を記録する。タブは分割間を移動できるので、表示のたびに再解決し、変わっていれば再描画する。
+- **paneのファイル一覧**: 2.1 の v1.3 例外により `FileEditorManagerEx.getWindows()` から識別子と **同一** のwindowを探し、その `getFileList()` をそのままそのpaneのファイル一覧（IDEのタブ順）にする。表示履歴から一覧を推測しない（推測方式は、未表示タブを全paneに出さざるを得ず、クリックするたびに他paneへ消えるという破綻した挙動になったため却下）。
+
+#### paneごとのModel
 
 ```text
-Project Group Model
-       │
-       ├ Header A - Split Left
-       └ Header B - Split Right
+Registry: editor → pane（editorWindow の同一性）
+              │
+              ▼
+FileEditorManagerEx.getWindows() から同一のwindow → getFileList()
+              │
+              ▼
+DirectoryGroupBuilder（Group順・File順の保存はProject共通）
+              │
+              ▼
+pane Model（同じpaneのHeaderは同じModelを共有: PaneModelCache）
 ```
 
-各Headerのactive fileは、そのHeaderが属するEditorの表示ファイルを優先する。
+- paneが未解決のHeader（`null`）と、IDEがもう列挙しないpane（取得失敗を含む）は Project 全体のModelを表示する（v1.2までと同じ。Headerが誤って空になるより安全）。
+- `GroupedTabsProjectService.model` はProject全体のModelのまま維持し、modified更新やテストの基準にする。
+- paneのファイル一覧は refresh のたびに読み直す。open / close / selection / 分割間のタブ移動はいずれも既存のイベントで refresh を起こす。
 
-Group/File Tabをクリックした場合は、ユーザーが操作したHeader側のEditor領域へファイルを開くことを理想挙動とする。
+#### paneごとのLast Active File
 
-Stable Public APIだけでpaneを明示指定できない場合は、対象Header側へfocusを移してから標準 `openFile()` を呼び、以降のpane選択はIDE標準挙動へ委ねる。
+8.3のLast Active Fileはpaneごとに持つ（`null` paneはProject共通のfallback）。selectionChangedで渡される `FileEditor` からpaneを解決して記録し、Group Tabクリック時はHeaderのpaneの履歴を優先する。
+
+#### 開く先のpane
+
+Group/File Tabをクリックした場合は、ユーザーが操作したHeader側のEditor領域へファイルを開く。
+
+Stable Public APIだけでpaneを明示指定できないので、対象Header側へfocusを移してから標準 `openFile()` を呼び、以降のpane選択はIDE標準挙動へ委ねる。
 
 #### 実装（v1.3、Issue #29）
 
@@ -849,6 +885,10 @@ Stable Public APIだけでpaneを明示指定できない場合は、対象Heade
 Split制御のために `FileEditorManagerEx` / `EditorWindow` は使用しない。
 
 Stable Public APIだけで現在splitへの確実なopenが保証できないケースでは、IDE標準のopen挙動をそのまま採用する。この制約を解消するためにInternal APIへfallbackしてはならない。
+
+#### テスト
+
+軽量テストフィクスチャは分割ウィンドウを作れないため、pane解決は差し替え可能（`paneResolverForTest`）にして `GroupedTabsProjectServiceTest` で検証し、実際の分割はサンドボックスで手動確認する。
 
 ### 13.1 v0.1着手時のSplit / Tabless PoC
 
@@ -1465,6 +1505,9 @@ com.intellij.openapi.actionSystem.ActionManager / IdeActions / ActionPlaces
 com.intellij.openapi.actionSystem.CustomizedDataContext（withSnapshot）
 com.intellij.openapi.actionSystem.AnActionEvent（createEvent）
 com.intellij.openapi.actionSystem.ex.ActionUtil（performAction）
+com.intellij.ide.DataManager（getDataContext(component)）
+com.intellij.openapi.fileEditor.ex.FileEditorManagerEx（getInstanceEx / getWindows のみ。2.1 v1.3例外）
+com.intellij.openapi.fileEditor.impl.EditorWindow（getFileList と同一性比較のみ。2.1 v1.3例外）
 ```
 
 主要操作:
@@ -1486,6 +1529,9 @@ ActionManager.createActionPopupMenu(ActionPlaces.EDITOR_TAB_POPUP, group)
 ActionManager.getAction(IdeActions.ACTION_CLOSE_EDITOR)
 CustomizedDataContext.withSnapshot(parent, snapshot)
 ActionUtil.performAction(action, event)
+DataManager.getInstance().getDataContext(headerComponent).getData(editorWindow)
+FileEditorManagerEx.getInstanceEx(project).getWindows()
+EditorWindow.getFileList()
 ```
 
 ### 27.2 同一クラス内でもAPI単位で判定する
@@ -1520,8 +1566,9 @@ IDEバージョン更新時も同じ監査を行う。既存APIが後からDepre
 @ApiStatus.Experimental API
 @ApiStatus.ScheduledForRemoval API
 @ApiStatus.Obsolete API
-com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
-EditorWindow
+com.intellij.openapi.fileEditor.ex.FileEditorManagerEx（getInstanceEx / getWindows 以外。2.1 v1.3例外）
+EditorWindow（getFileList と同一性比較以外。2.1 v1.3例外）
+EditorsSplitters
 EditorComposite implementation
 EditorTabs implementation
 JBTabs implementation internals
