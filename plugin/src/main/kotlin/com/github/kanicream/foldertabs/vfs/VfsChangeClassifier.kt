@@ -34,7 +34,11 @@ data class VfsChangeSummary(
 object VfsChangeClassifier {
 
     fun classify(events: List<VFileEvent>, openFiles: Collection<VirtualFile>): VfsChangeSummary {
-        if (events.isEmpty() || openFiles.isEmpty()) return VfsChangeSummary.NONE
+        // Do not short-circuit on an empty [openFiles]: rename / delete URLs are collected for
+        // every event so the saved group / file orders follow directories whose files are all
+        // closed (design sections 7.1 / 7.2, issue #32). With nothing open, [structureChanged]
+        // and [contentChangedFiles] cannot become set, so no extra rebuilds are introduced.
+        if (events.isEmpty()) return VfsChangeSummary.NONE
         val renamed = mutableListOf<Pair<String, String>>()
         val deleted = mutableListOf<String>()
         val contentChanged = mutableListOf<VirtualFile>()
