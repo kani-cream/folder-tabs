@@ -1423,6 +1423,10 @@ Reddit / 利用者フィードバックへの対応:
 
 サンドボックスでの手動確認（ファイルタブDnD → refresh / 再起動後の順序、分割時の左右独立表示、右Headerのクリックが右paneに開く、単一paneの非退行）を利用者が実施し、idea.logにプラグイン由来の例外が無いことを確認して各PRをマージした。
 
+#### v1.3.1（2026-09-06）
+
+- 全エディタを閉じた状態でのrename / move / deleteが保存済みのGroup順・File順に追従しない不具合を修正（Issue #32、7.1 / 7.2 / 10）。`VfsChangeClassifier` は open file が無くてもrename / deleteのURLを収集する。`structureChanged` と content変更はopen fileに限定されたままなので、refresh経路は増えない。回帰テストは `GroupedTabsSyncTest`。
+
 ---
 
 ## 26. 受け入れ基準

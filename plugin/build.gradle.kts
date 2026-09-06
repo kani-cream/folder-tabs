@@ -52,6 +52,12 @@ intellijPlatform {
         name = "Folder Tabs"
         version = project.version.toString()
         changeNotes = """
+            <b>1.3.1</b>
+            <ul>
+              <li>Saved group and file order now follows a directory or file rename, move or delete even
+                  while no editor is open; previously the reordered position was lost the next time
+                  those files were opened.</li>
+            </ul>
             <b>1.3.0</b>
             <ul>
               <li>File tabs can now be reordered by drag &amp; drop within their group, like the group tabs;
