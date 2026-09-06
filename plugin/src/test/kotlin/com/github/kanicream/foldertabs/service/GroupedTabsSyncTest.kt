@@ -100,6 +100,78 @@ class GroupedTabsSyncTest : BasePlatformTestCase() {
 
     private fun fileNames(group: Int = 0) = service.model.groups[group].files.map { it.displayName }
 
+    private fun closeAll() {
+        editors.openFiles.forEach { editors.closeFile(it) }
+        flush()
+        assertTrue(editors.openFiles.isEmpty())
+    }
+
+    private fun reopen(file: VirtualFile) {
+        editors.openFile(file, true)
+        flush()
+    }
+
+    // Issue #32: saved orders must follow rename / delete even while no editor is open.
+
+    fun testSavedGroupOrderFollowsDirectoryRenameWhileNoFilesAreOpen() {
+        val a = open("a/1.go")
+        val b = open("b/2.go")
+        val (ga, gb) = service.model.groups
+        service.reorderGroups(listOf(gb, ga))
+        flush()
+        closeAll()
+        WriteAction.runAndWait<Exception> { b.parent.rename(this, "zzz") }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        assertEquals(listOf(b.parent.url, a.parent.url), GroupOrderState.getInstance(project).savedUrls)
+        reopen(a)
+        reopen(b)
+        assertEquals(listOf("zzz", "a"), groupNames())
+    }
+
+    fun testSavedFileOrderFollowsDirectoryRenameWhileNoFilesAreOpen() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        service.reorderFiles(service.model.groups.single(), listOf(b, a))
+        flush()
+        closeAll()
+        WriteAction.runAndWait<Exception> { a.parent.rename(this, "accounts") }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        assertEquals(mapOf(a.parent.url to listOf(b.url, a.url)), FileOrderState.getInstance(project).saved)
+        reopen(a)
+        reopen(b)
+        assertEquals(listOf("accounts"), groupNames())
+        assertEquals(listOf("b.go", "a.go"), fileNames())
+    }
+
+    fun testSavedFileOrderFollowsFileRenameWhileNoFilesAreOpen() {
+        val a = open("users/a.go")
+        val b = open("users/b.go")
+        service.reorderFiles(service.model.groups.single(), listOf(b, a))
+        flush()
+        closeAll()
+        WriteAction.runAndWait<Exception> { b.rename(this, "z.go") }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        reopen(a)
+        reopen(b)
+        assertEquals(listOf("z.go", "a.go"), fileNames())
+    }
+
+    fun testDeletingDirectoryWhileNoFilesAreOpenDropsItsSavedOrders() {
+        val a = open("a/1.go")
+        val b = open("b/2.go")
+        val (ga, gb) = service.model.groups
+        service.reorderGroups(listOf(gb, ga))
+        service.reorderFiles(gb, listOf(b))
+        flush()
+        assertTrue(b.parent.url in GroupOrderState.getInstance(project).savedUrls)
+        assertTrue(b.parent.url in FileOrderState.getInstance(project).saved.keys)
+        closeAll()
+        WriteAction.runAndWait<Exception> { b.parent.delete(this) }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        assertEquals(listOf(a.parent.url), GroupOrderState.getInstance(project).savedUrls)
+        assertEquals(emptyMap<String, List<String>>(), FileOrderState.getInstance(project).saved)
+    }
+
     fun testFileReorderPersistsAndSurvivesRefresh() {
         val a = open("users/a.go")
         val b = open("users/b.go")
