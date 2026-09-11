@@ -110,7 +110,7 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
     private fun editorOf(file: VirtualFile): FileEditor = editors.getAllEditors(file).single()
 
     private fun groupsShownFor(file: VirtualFile) =
-        service.panelForTest(editorOf(file)).renderedModelForTest().groups.map { it.displayName }
+        service.panelForTest(editorOf(file)).renderedModel.groups.map { it.displayName }
 
     /**
      * Fakes the two things a light test cannot get from the platform: the pane a header sits in
@@ -176,7 +176,7 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         flush()
         service.onSelectionChanged(c, editorOf(c)) // pane L last saw c
         service.onSelectionChanged(r, editorOf(r)) // pane R last saw r
-        val usersInL = service.panelForTest(editorOf(a)).renderedModelForTest().groups.single()
+        val usersInL = service.panelForTest(editorOf(a)).renderedModel.groups.single()
         service.openGroup(usersInL, pane = editorOf(a).component)
         flush()
         assertEquals(c, editors.selectedFiles.first())

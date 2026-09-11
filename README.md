@@ -50,6 +50,11 @@ are performed manually.
   read `~/<project>/…`.
 - **Fast switching**: click a group to return to the file you last used there;
   click a file to open it in the normal editor.
+- **Keyboard navigation**: the *Next Folder Group* / *Previous Folder Group*
+  actions (`Window > Editor Tabs`, or *Find Action*) move to the adjacent group
+  and open the file you last used there, wrapping at the ends; in split editors
+  they cycle through the groups of the focused pane only. They ship without a
+  default shortcut, so assign one in `Settings > Keymap > Plugins > Folder Tabs`.
 - **Close from the header**: every file tab has the standard close button and a
   right-click *Close* entry; a group tab's right-click menu offers *Close
   Group* (all files of that directory). So the header works on its own with

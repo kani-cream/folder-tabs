@@ -163,6 +163,7 @@ huga/users
 - File Tabに未保存変更（modified）の状態を表示
 - グループ選択からファイル選択へのナビゲーション
 - Group再選択時にLast Active Fileを復元
+- Next / Previous Folder Group アクションでGroup間をキーボード移動できる。既定キーは持たず、IDEのKeymapで割り当てる（v1.4、8.4参照）
 - File Tab選択で通常のIntelliJ Editorを開く
 - Editor split が存在してもEditor本体を壊さず安全に動作する。各paneのHeaderはそのpaneで開いているファイルだけを表示する（v1.3、13参照）
 - `Tab placement: None` と標準タブ併用の両方で利用できる
@@ -181,7 +182,7 @@ huga/users
 - 任意のユーザー定義グループ
 - Git branch / module / packageによるグループ化
 - PSIを使った意味的な分類
-- 独自Keyboard Shortcut体系
+- 独自Keyboard Shortcut体系（既定キーを伴うショートカット。v1.4で提供するのはKeymapから割り当て可能なアクションのみ、8.4参照）
 - AI機能
 - ファイル解析
 - 標準Editor Tabsの設定をプラグイン側から強制変更
@@ -670,6 +671,29 @@ Map<DirectoryKey, VirtualFile>
 永続化はv1.0では行わない。
 
 IDE再起動時は現在選択中ファイルとソート順から再構築する。
+
+### 8.4 キーボードによるGroup移動（v1.4、Issue #24）
+
+`FolderTabs.NextGroup` / `FolderTabs.PreviousGroup` の2アクション（表示名 Next Folder Group / Previous Folder Group）を提供する。
+
+- **登録先**: `Window > Editor Tabs` の Next Tab / Previous Tab の直後。Find Action と `Settings > Keymap > Plugins > Folder Tabs` からも到達できる。
+- **既定キー**: 持たない。2026.2の既定キーマップでは矢印キー系の主要な組み合わせがすべて埋まっており（Ctrl+Alt+←/→ = Resize Tool Window / Back・Forward、Alt+Shift+←/→ = Next/Previous Editor Tab 等）、既定を配ると既存キーを奪うか OS 側と衝突するため、ユーザーが Keymap で割り当てる。
+- **対象Editor**: DataContextの `PlatformDataKeys.FILE_EDITOR` がHeaderを持つEditorならそれ。持たない、または無い場合（Tool Window やメニューからの実行、Editor領域外にホストされたEditor）は `FileEditorManager.selectedEditor`、つまり最後にフォーカスのあったEditorを使う。標準の Next Tab と同じ挙動。Headerを持つEditorが無ければ無効。
+- **移動先**: 対象EditorのHeaderが**描画中のGroup列**（13参照。Split時はそのpaneのGroupのみ）の中で隣のGroup。端では循環する（Next Tab / Previous Tab と同じ）。現在Groupが列に無い場合は移動しない。
+- **実行前のRefresh**: 描画済みモデルはcoalesceされたRefresh（19参照）1回分だけ実際の開いているファイルより古いことがある（閉じた直後のファイル、Splitに入った直後でまだProject全体のモデルを表示しているHeader）。キー入力はその隙間に届き得るので、`navigateGroup` は先に `refreshNow()` を呼んでから隣を決める。
+- **ファイル選択**: 8.2 と同じ。`openGroup` にHeaderクリックと同じfocus対象（`preferredFocusedComponent ?: component`）を渡すので、そのpaneのLast Active File、無ければソート順の先頭を、そのpaneで開く。
+- **無効化**: 対象Editorが無い、またはHeaderのGroupが1つ以下のとき `presentation.isEnabled = false`（メニュー項目は常に表示）。
+- **API**: `DumbAwareAction` + `ActionUpdateThread.EDT`（Header registryはEDT専用状態）。Stable Public API Only を維持する。
+
+```text
+Next Folder Group（users で実行、Header は api / orders / users を表示）
+    ↓
+users の次 = api（末尾なら先頭へ循環）
+    ↓
+openGroup(api, editor.component)   -- 8.2 と同じ経路
+    ↓
+api の Last Active File を開く
+```
 
 ---
 
