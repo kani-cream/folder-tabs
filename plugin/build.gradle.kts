@@ -52,7 +52,7 @@ kover {
     }
     reports {
         verify {
-            // 80% line coverage gate (README > Development, plan section 24.x); koverVerify runs with `check`.
+            // 80% line coverage gate (README > Development, plan section 24.5); koverVerify runs with `check`.
             rule("plugin line coverage") {
                 minBound(80)
             }
