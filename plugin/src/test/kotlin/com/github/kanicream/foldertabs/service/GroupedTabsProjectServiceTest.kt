@@ -1,43 +1,12 @@
 package com.github.kanicream.foldertabs.service
 
+import com.github.kanicream.foldertabs.FolderTabsPlatformTestCase
 import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.fileEditor.FileEditor
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.testFramework.PlatformTestUtil
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 /** Design section 24.2: model follows open / close / selection through the real editor manager. */
-class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
-
-    private val service get() = GroupedTabsProjectService.getInstance(project)
-    private var savedDepth = 0
-
-    override fun setUp() {
-        super.setUp()
-        savedDepth = FolderTabsSettings.getInstance().groupLabelDepth
-        FolderTabsSettings.getInstance().groupLabelDepth = 1 // labels are plain directory names below
-    }
-
-    override fun tearDown() {
-        try {
-            FolderTabsSettings.getInstance().groupLabelDepth = savedDepth
-        } finally {
-            super.tearDown()
-        }
-    }
-    private val editors get() = FileEditorManager.getInstance(project)
-
-    private fun open(path: String) = myFixture.addFileToProject(path, "").virtualFile.also {
-        editors.openFile(it, true)
-        flush()
-    }
-
-    private fun flush() {
-        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        service.refreshNow()
-    }
+class GroupedTabsProjectServiceTest : FolderTabsPlatformTestCase() {
 
     fun testOpeningFilesAddsGroups() {
         open("users/a.go")
@@ -107,10 +76,8 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
 
     // ---- design section 13.0 (v1.3): one model per split pane ----
 
-    private fun editorOf(file: VirtualFile): FileEditor = editors.getAllEditors(file).single()
-
     private fun groupsShownFor(file: VirtualFile) =
-        service.panelForTest(editorOf(file)).renderedModelForTest().groups.map { it.displayName }
+        service.panelForTest(editorOf(file)).renderedModel.groups.map { it.displayName }
 
     /**
      * Fakes the two things a light test cannot get from the platform: the pane a header sits in
@@ -176,7 +143,7 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         flush()
         service.onSelectionChanged(c, editorOf(c)) // pane L last saw c
         service.onSelectionChanged(r, editorOf(r)) // pane R last saw r
-        val usersInL = service.panelForTest(editorOf(a)).renderedModelForTest().groups.single()
+        val usersInL = service.panelForTest(editorOf(a)).renderedModel.groups.single()
         service.openGroup(usersInL, pane = editorOf(a).component)
         flush()
         assertEquals(c, editors.selectedFiles.first())

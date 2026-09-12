@@ -77,12 +77,13 @@ class GroupedTabsPanel(
         private set
 
     /** The model of the last [render]; group tab keys are resolved against it (see [groupFor]). */
-    private var rendered: GroupedTabsModel = GroupedTabsModel.EMPTY
+    var renderedModel: GroupedTabsModel = GroupedTabsModel.EMPTY
+        private set
 
     fun render(model: GroupedTabsModel) {
         val group = model.groupOf(ownFile)
         activeGroup = group
-        rendered = model
+        renderedModel = model
 
         // Group tabs are keyed by the group's stable identity (issue #16): keying them by the whole
         // DirectoryGroupModel value made any file's modified flip a "new key" and rebuilt the strip.
@@ -113,7 +114,7 @@ class GroupedTabsPanel(
         if (tab.modified) MODIFIED_PREFIX + tab.displayName else tab.displayName
 
     /** The current model's group behind a group tab key ([DirectoryGroupModel.orderKey]). */
-    private fun groupFor(key: Any): DirectoryGroupModel? = rendered.groups.firstOrNull { it.orderKey == key }
+    private fun groupFor(key: Any): DirectoryGroupModel? = renderedModel.groups.firstOrNull { it.orderKey == key }
 
     private fun onGroupSelected(key: Any) {
         val group = groupFor(key) ?: return
@@ -151,9 +152,6 @@ class GroupedTabsPanel(
 
     /** Test hook: the header joined a window. */
     internal fun shownForTest() = onShown()
-
-    /** Test hook: the model of the last [render]. */
-    internal fun renderedModelForTest(): GroupedTabsModel = rendered
 
     /** Test hook: what JBTabs' drag-reorder reports (the tab keys in their new order). */
     internal fun groupsReorderedForTest(keysInNewOrder: List<Any>) = onGroupsReordered(keysInNewOrder)

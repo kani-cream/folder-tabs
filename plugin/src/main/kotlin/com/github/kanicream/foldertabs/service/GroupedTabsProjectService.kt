@@ -4,6 +4,8 @@ import com.github.kanicream.foldertabs.editor.EditorHeaderRegistry
 import com.github.kanicream.foldertabs.editor.PaneModelCache
 import com.github.kanicream.foldertabs.grouping.DirectoryGroupBuilder
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
+import com.github.kanicream.foldertabs.model.GroupDirection
+import com.github.kanicream.foldertabs.model.GroupNavigation
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
 import com.github.kanicream.foldertabs.order.FileOrder
 import com.github.kanicream.foldertabs.order.FileOrderState
@@ -225,6 +227,35 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         if (urls.isEmpty()) return
         FileOrderState.getInstance(project).update { FileOrder.applyReorder(it, group.orderKey, urls) }
         requestRefresh()
+    }
+
+    // ---- keyboard navigation (design section 8.4, issue #24) ---------------------------
+
+    /** Whether [editor] carries a Folder Tabs header, i.e. can be the target of group navigation. */
+    fun hasHeader(editor: FileEditor): Boolean = registry.contains(editor)
+
+    /** Whether the header of [editor] shows at least two groups to move between. */
+    fun canNavigateGroups(editor: FileEditor): Boolean =
+        (registry.panelOf(editor)?.renderedModel?.groups?.size ?: 0) >= 2
+
+    /**
+     * Opens the group adjacent to the one [editor] belongs to, within the groups its own header
+     * shows (so a split pane cycles through its pane only); wraps at both ends. Returns `false`
+     * when there is nothing to move to. The file is chosen like a group click ([openGroup]).
+     *
+     * The headers are brought up to date first: a rendered model may lag the open files by one
+     * coalesced refresh (a file closed a moment ago, a header that has just joined a split pane
+     * and still shows the project-wide model), and a keystroke is fast enough to hit that gap.
+     */
+    fun navigateGroup(editor: FileEditor, direction: GroupDirection): Boolean {
+        if (!registry.contains(editor)) return false
+        refreshNow()
+        val panel = registry.panelOf(editor) ?: return false
+        // activeGroup is an element of renderedModel.groups: both are set by the same render().
+        val target = GroupNavigation.adjacent(panel.renderedModel.groups, panel.activeGroup, direction) ?: return false
+        // Same focus target as a header click, so the opener lands in this editor's pane (13).
+        openGroup(target, editor.preferredFocusedComponent ?: editor.component)
+        return true
     }
 
     // ---- refresh ----------------------------------------------------------------------

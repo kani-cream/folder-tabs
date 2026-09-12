@@ -32,4 +32,14 @@
         <listener class="com.github.kanicream.foldertabs.editor.FolderTabsEditorListener"
                   topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
     </projectListeners>
+
+    <actions>
+        <!-- Issue #24: assignable in Settings > Keymap; no default shortcut is shipped. -->
+        <action id="FolderTabs.NextGroup" class="com.github.kanicream.foldertabs.actions.NextGroupAction">
+            <add-to-group group-id="EditorTabsGroup" anchor="after" relative-to-action="PreviousTab"/>
+        </action>
+        <action id="FolderTabs.PreviousGroup" class="com.github.kanicream.foldertabs.actions.PreviousGroupAction">
+            <add-to-group group-id="EditorTabsGroup" anchor="after" relative-to-action="FolderTabs.NextGroup"/>
+        </action>
+    </actions>
 </idea-plugin>
