@@ -1,6 +1,6 @@
 # Directory Grouped Editor Tabs - 設計書
 
-- **文書状態**: v1.0 Final（Marketplace提出前レビュー反映済み）
+- **文書状態**: 仕様と設計判断の記録（v1.4時点、2026-09-12更新）。リリース記録は置かない（25参照）。コード内の `design section N` コメントは本書の節番号を指すので、節番号は変えない
 - **作成日**: 2026-08-21
 - **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
 - **関連要望**: IJPL-186183
@@ -1025,81 +1025,66 @@ v1.0では:
 
 ## 17. 状態モデル
 
+現在のモデル（`model/GroupedTabsModel.kt`）。選択状態はモデルに持たず、各Headerが自分の `ownFile` から導出する（13参照：Headerは自分のpaneの投影を描く）。
+
 ```kotlin
-data class GroupedTabsModel(
-    val groups: List<DirectoryGroupModel>,
-    val selectedFile: VirtualFile?,
-)
+data class GroupedTabsModel(val groups: List<DirectoryGroupModel>) {
+    fun groupOf(file: VirtualFile?): DirectoryGroupModel?
+    fun withModified(file: VirtualFile, modified: Boolean): GroupedTabsModel  // 19: modifiedだけの差分更新
+}
 
 data class DirectoryGroupModel(
-    val directory: VirtualFile?,
-    val displayName: String,
-    val fullPath: String,
+    val directory: VirtualFile?,   // null = "Other" Group（14）
+    val displayName: String,       // Minimal Unique Path（6）
+    val fullPath: String,          // Tooltip
     val files: List<FileTabModel>,
-    val selectedFile: VirtualFile?,
-)
+) {
+    val orderKey: String           // directory.url、Otherは "folder-tabs://other"（7.1）
+}
 
-data class FileTabModel(
-    val file: VirtualFile,
-    val displayName: String,
-    val fullPath: String,
-    val selected: Boolean,
-    val modified: Boolean,
-)
+data class FileTabModel(val file: VirtualFile, val displayName: String, val fullPath: String, val modified: Boolean)
 ```
 
-UIは `GroupedTabsModel` のprojectionとして扱い、UIコンポーネント自身に業務状態を持たせすぎない。
+不変（immutable）。更新は必ず新しいインスタンスを作る。UIは `GroupedTabsModel` のprojectionとして扱い、UIコンポーネント自身に業務状態を持たせない。
 
 ---
 
 ## 18. コンポーネント構成
 
+`plugin/src/main/kotlin/com/github/kanicream/foldertabs/` のパッケージ構成（v1.4時点）。
+
 ```text
-GroupedTabsProjectService
-├ OpenFilesSnapshotProvider
-├ DirectoryGroupBuilder
-├ MinimalUniquePathResolver
-├ GroupSortPolicy
-├ LastActiveFileTracker
-├ GroupedTabsModel
-└ EditorHeaderRegistry
-    └ GroupedTabsPanel
-        ├ DirectoryGroupTabsView
-        └ FileTabsView
+service/GroupedTabsProjectService     Project単位のハブ。listener購読、モデル再構築（19）、Header同期、
+                                      FolderTabsNavigator実装、Group navigation（8.4）、折りたたみ状態（4.1.3）
+service/LastActiveFileTracker         GroupごとのLast Active File（8.3）。paneごとに1つ（13）
+service/EditorPaneOpener              Headerのpaneでファイルを開く（13）
+service/EditorTabCloser               IDEのCloseEditor経由で閉じる（15.2）
+editor/EditorHeaderRegistry           FileEditor → Header と pane帰属の台帳（11.2 / 13）
+editor/PaneModelCache                 paneごとの投影モデル（13.0）
+editor/FolderTabsEditorListener       FileEditorManagerListener → Service（9）
+editor/FolderTabsStartupActivity      起動時に既存Editorへ付与
+grouping/DirectoryGroupBuilder        open files → GroupedTabsModel（5 / 7）
+grouping/MinimalUniquePathResolver    同名Groupの表示名（6）、GroupLabelPolicy
+grouping/DirectoryPathSegments        パス分割
+grouping/NaturalOrderComparator       自然順ソート（7）
+model/GroupedTabsModel                17
+model/GroupNavigation                 隣のGroup（8.4）
+order/GroupOrder, GroupOrderState     Group順の計算と永続化（7.1）
+order/FileOrder, FileOrderState       File順の計算と永続化（7.2）
+vfs/VfsChangeClassifier               VFSイベントの分類（10 / 19）
+ui/GroupedTabsPanel                   1 Editor分のHeader（4）。2段のTabStrip か CollapsedHeaderBar
+ui/TabStrip                           JBTabsのラッパ。click-on-release、DnD、popup（8 / 7.1 / 15）
+ui/ActiveUnderline                    選択タブのactive下線（公開APIのみ）
+ui/CloseTabAction                     Closeボタン / メニュー項目（15.1）
+ui/CollapsedHeaderBar                 折りたたみ時の1行バー（4.1.3）
+ui/FolderTabsNavigator                Header → Serviceの唯一の窓口（interface）
+actions/NavigateGroupAction           Next / Previous Folder Group（8.4）
+actions/ToggleCollapsedAction         Collapse Folder Tabs（4.1.3）
+settings/FolderTabsSettings           Application設定（21）
+settings/FolderTabsConfigurable       Settings > Tools > Folder Tabs（21）
 ```
 
-### GroupedTabsProjectService
-
-Project単位の中心Service。
-
-責務:
-
-- listener lifecycle
-- model再構築
-- last active管理
-- Editor Header同期
-
-### OpenFilesSnapshotProvider
-
-`FileEditorManager` から現在のopen filesを取得する。
-
-### DirectoryGroupBuilder
-
-`VirtualFile.parent` 単位でグループ化する。
-
-### MinimalUniquePathResolver
-
-同名Group表示名を解決する。
-
-UIには依存させない。
-
-### EditorHeaderRegistry
-
-FileEditorとHeader Panelのライフサイクルを管理する。
-
-### GroupedTabsPanel
-
-Modelを受け取って描画するだけのUI層。
+依存の向き: `ui` は `model` と `FolderTabsNavigator` だけを知り、IDEの状態は `service` / `editor` が扱う。
 
 ---
 
@@ -1233,327 +1218,50 @@ Internal APIへfallbackして機能を維持することは禁止する。
 
 ## 24. テスト戦略
 
+テストコード自体が仕様の一次資料である。ここでは方針だけを残す。
+
 ### 24.1 Unit Test
 
-#### MinimalUniquePathResolver
-
-最低限:
-
-```text
-users
-orders
-```
-
-```text
-hoge/users
-huga/users
-```
-
-```text
-aaa/hoge/users
-bbb/hoge/users
-```
-
-```text
-moduleA/src/main/users
-moduleB/src/main/users
-```
-
-プロジェクト外パスも含める。
-
-Group Label Depth:
-
-- depth 2 で `main/users`
-- depth がプロジェクト階層数以上で `~/project/src/main/users`
-- depth 2 でも衝突する `a/x/users` / `b/x/users` は3階層へ拡張
-- プロジェクト外パスには `~/` が付かない
-
-#### DirectoryGroupBuilder
-
-- 同一parent
-- 異なるparent
-- parentなし
-- invalid VirtualFile
-
-#### Sort
-
-- alphabetic
-- case difference
-- numeric suffix
-- tie-breaker
+純粋ロジック（`grouping` / `order` / `model` / `vfs` / `settings` の状態クラス）はプラットフォーム無しのJUnitで検証する。境界値（同名衝突、深さ、上限、空白・重複の永続入力）を必ず含める。
 
 ### 24.2 Platform Test
 
-- file openでGroup追加
-- file closeでGroup削除
-- selected file変更でactive更新
-- 最後のfileをcloseするとGroup消滅
-- directory rename
-- file move
-- project closeでlistener/panel解放
-- modified状態変更でindicator更新
-- 通常のcontent changeだけではGroup Modelを再構築しない
-- unrelated VFS eventではrefreshしない
-- Group順序の保存 / 復元、rename追従、上限超過時の削除
+Serviceとヘッダーは `BasePlatformTestCase`（共通フィクスチャ `FolderTabsPlatformTestCase`）で、実物の `FileEditorManager` を通して検証する。Split paneはpane解決とファイル一覧をテストフックで差し替える（13）。
 
 ### 24.3 Manual UI Test
 
-- Light theme
-- Dark theme
-- 125% / 150% UI scale
-- 長いディレクトリ名
-- 10+ groups
-- 20+ files in one group
-- Group / File overflowから全項目へ到達
-- active itemがoverflow時も識別・到達可能
-- modified indicator
-- Editor split
-- Tab placement: Top
-- Tab placement: None
-- Scratch / project外file
+PRごとにサンドボックス（`runIde`）で利用者が確認し、`idea.log` にプラグイン由来の例外が無いことを確認してからマージする。確認項目はPRのTest planに書く。定番: Light / Dark、UI scale、Split、Tab placement: None、Scratch / project外file。
 
 ### 24.4 Compatibility / API Stability Gate
 
-IntelliJ Plugin VerifierをCIで実行し、**Compatibleであることだけでは合格としない**。
+IntelliJ Plugin VerifierをCIで実行し、Compatibleであることだけでは合格としない。Deprecated / Scheduled-for-removal / Experimental / Internal API usage、OverrideOnly / NonExtendable違反、Missing dependencies、Invalid plugin problems はすべて0を条件とする（27 / 28）。Marketplaceは内部API使用を"Problems"として表示し、赤い警告付きの版は審査が止まる（v1.2.0の経験）。
 
-少なくとも次のカテゴリをCIの失敗条件として扱う。
+対応範囲は `sinceBuild = 262` / `untilBuild = 262.*`。新しいIDEへの拡大はVerifierと実機確認の後に明示的に行い、Stable Public API Onlyを維持できることを条件とする。
 
-```text
-Compatibility problems                 0
-Deprecated API usages                   0
-Scheduled-for-removal API usages        0
-Experimental API usages                 0
-Internal API usages                     0
-OverrideOnly violations                 0
-NonExtendable violations                0
-Missing dependencies                    0
-Invalid plugin problems                 0
-```
+### 24.5 カバレッジ
 
-Plugin Verifier / IntelliJ Platform Gradle Plugin の名称変更があった場合は、同等の検査カテゴリへ追従する。
-
-#### 対応IDE方針
-
-v1.0の対応範囲は **IntelliJ Platform / IntelliJ IDEA 2026.2 系**に限定する。
-
-初期設定は原則として次とする。
-
-```text
-sinceBuild = 262
-untilBuild = 262.*
-```
-
-新規プラグインであるため、2024.x / 2025.x への後方互換のためだけに旧APIを導入しない。2026.3以降への対応はPlugin Verifierと実機確認後に明示的に広げる。対応範囲を広げる場合もStable Public API Onlyを維持できることを条件とする。
-
-CIでは最低限、次を検証する。
-
-- 最小サポート対象の2026.2系
-- リリース時点の最新安定IDE
-- 実用可能であれば次期IDE / EAPを早期警告目的で追加
-
-次期IDE / EAPでdeprecated等が新規検出された場合は、正式リリース前に置換候補を調査する。
-
-### 24.x カバレッジ（v1.4）
-
-計測は Kover（`org.jetbrains.kotlinx.kover`、plugin モジュール）。`./gradlew :plugin:koverHtmlReport` / `koverXmlReport` でレポートを出し、`koverVerify`（`check` に含まれる）で**行カバレッジ 80% 未満はビルド失敗**とする。2026-09-12 時点の実測は行 96.9% / 分岐 76.6%（226テスト）。80% 未満で残るのは Swing の `addNotify` フックと companion の静的初期化行だけで、テスト対象にしない。
+Kover（`org.jetbrains.kotlinx.kover`、plugin モジュール、計装対象は自パッケージのみ）。`./gradlew :plugin:koverHtmlReport` / `koverXmlReport` でレポート、`koverVerify`（`check` に含まれる）で行カバレッジ80%未満はビルド失敗。80%未満で残るのはSwingの `addNotify` フックとcompanionの静的初期化行だけで、テスト対象にしない。
 
 ---
 
 ## 25. 実装フェーズ
 
-ステップ数を増やしすぎず、3段階で完了させる。
+リリースの記録はこの文書には置かない。
 
-### v0.1 - Core
+- 何がいつ出たか: gitタグ（`v1.0.0` 〜）、各リリースPR（`chore: release x.y.z`）、`plugin/build.gradle.kts` の `changeNotes`
+- なぜそうしたか: 各機能PRの本文と、この文書の該当節（節番号はコードコメントの `design section N` と対応）
 
-- Split / Tabless PoCを最初のgateとして実施
-- Project Service
-- `FileEditorManagerListener`
-- open files snapshot（valid / non-directory）
-- parent directory grouping
-- Minimal Unique Path
-- deterministic sort
-- `addTopComponent`
-- Directory Group Tabs
-- File Tabs
-- file selection
-- group selection + last active
-- Group Label Depth設定（Application-level、初期値2）と設定画面
-- basic unit tests
-
-**完了条件**:
-
-```text
-[ users ] [ orders ]
-controller.go | model.go | service.go
-```
-
-がEditor直上に表示され、実際のEditor切替まで動く。
-
-### v0.5 - Sync & UX
-
-- open / close / selection同期の安定化
-- VFS rename / move / delete追従
-- unrelated/content-only VFS eventのfilter
-- modified indicator
-- 1行固定overflow
-- full path tooltip
-- active item visibility
-- split editor確認
-- Tab placement None確認
-- Light/Dark theme / UI scale確認
-- Group TabのDrag & Drop並べ替えとProject-levelの順序保持（7.1）
-
-**完了条件**:
-
-通常利用で標準Editor Tabsの代替ナビゲーションとして使える。
-
-### v1.0 - Usability & Stabilization
-
-- Application-level Settings ON/OFF（default ON）
-- lifecycle/dispose精査
-- edge case対応
-- UI polish
-- accessibility確認
-- v1.0 Usability Review
-- 必要と判断した小規模UX改善の取り込み
-- Plugin Verifier
-- Marketplace用metadata/documentation
-
-**完了条件**:
-
-Deprecated / Scheduled-for-removal / Experimental / Internal API 0件、API契約違反0件、主要操作でUI同期の破綻なし。さらに、標準タブを非表示にした状態でも「日常的なファイル切替UIとして使いたい」と判断できる完成度に達していること。
-
-### v1.0 Final - Marketplace提出前レビュー反映
-
-公開前コードレビューで挙がった項目と対応:
-
-| 優先度 | 指摘 | 対応 |
-|---|---|---|
-| P1 | 新規GroupをDnDしても末尾へ保存される | `GroupOrder.applyReorder` を「表示順最優先」に変更（7.1） |
-| P1 | 3秒タイマーが長時間ドラッグ中に再構築を起こし得る | `TabInfo.DragDelegate` でJBTabsのドラッグ開始/終了を直接受け取り、その間は再構築と選択移動を遅延（7.1）。release監視案はglass paneがイベントをconsumeするため不成立だった |
-| P2 | READMEの対応IDE表記と `untilBuild` の不一致 | README を 2026.2.x に修正 |
-| P3 | `EditorHeaderRegistry` がidentity mapでない | `IdentityHashMap`（copy-on-write）へ変更 |
-| P3 | `Other` GroupのDnD順序が保持されない | 合成キーで保持（14） |
-| P3 | 存在しないHelp Topic | `getHelpTopic() = null` |
-
-#### v1.0 Final Manual QA（2026-08-21 実施・全項目確認済み）
-
-```text
-- [x] 1. 標準Tabs ON
-- [x] 2. Tab placement None
-- [x] 3. Split Left / Right
-- [x] 4. 同名 users directory × 2
-- [x] 5. 10+ Group
-- [x] 6. 1 Groupに20+ files
-- [x] 7. overflowから一番端のfileを選択
-- [x] 8. modified → save
-- [x] 9. directory rename / move
-- [x] 10. Group DnD → IDE restart → 順序確認
-- [x] 11. 新規Groupを開く → 既存Groupより前へDnD → refresh/restart後も位置が保たれる
-- [x] 12. 3秒以上Groupをドラッグし、その間に別fileをopen/close → drop後に例外なく反映される（手動では片手が塞がるため不可。`TabStripTest` のドラッグ遅延テストでカバー）
-- [x] 13. Light / Dark
-- [x] 14. 125% / 150% scale
-- [x] 15. Enable OFF → ON
-- [x] 16. Scratch / project外file（Other GroupのDnD順序も保持される）
-- [x] 17. idea.logにExceptionなし
-```
-
----
-
-### v1.3 - Split & Reorder（2026-09-05）
-
-Reddit / 利用者フィードバックへの対応:
-
-- File TabsのDrag & Drop並べ替えとProject単位の順序保持（Issue #23、7.2）
-- 分割エディタ: クリックしたHeader側のpaneへ開く（Issue #29、`EditorPaneOpener`、13）
-- 分割エディタ: 各paneのHeaderにそのpaneのファイルだけを表示（Issue #29、13.0、2.1のv1.3例外）
-
-サンドボックスでの手動確認（ファイルタブDnD → refresh / 再起動後の順序、分割時の左右独立表示、右Headerのクリックが右paneに開く、単一paneの非退行）を利用者が実施し、idea.logにプラグイン由来の例外が無いことを確認して各PRをマージした。
-
-#### v1.3.1（2026-09-06）
-
-- 全エディタを閉じた状態でのrename / move / deleteが保存済みのGroup順・File順に追従しない不具合を修正（Issue #32、7.1 / 7.2 / 10）。`VfsChangeClassifier` は open file が無くてもrename / deleteのURLを収集する。`structureChanged` と content変更はopen fileに限定されたままなので、refresh経路は増えない。回帰テストは `GroupedTabsSyncTest`。
-
-### v1.4 - Keyboard & Collapse（2026-09-12）
-
-Reddit / 利用者フィードバックへの対応。どちらも `Window > Editor Tabs` にアクションを追加し、既定ショートカットは持たない（Keymapで割り当て）。
-
-- Next / Previous Folder Group アクションによるGroup間のキーボード移動。端で循環、Split時はフォーカス中paneのGroup列のみ、実行前に `refreshNow()`（Issue #24、8.4、PR #36）
-- Headerの1行折りたたみ `Collapse Folder Tabs`。Projectごと・永続化なし、`CollapsedHeaderBar` の全面クリックで展開、Enable OFFでリセット（Issue #26、4.1.3、PR #37）
-- Koverによるカバレッジ計測と `koverVerify`（行80%）を `check` に組み込み。1.4.0時点で行 96.9% / 分岐 76.6%、226テスト（24.x、PR #38）
-
-サンドボックスでの手動確認（Keymap割り当てと循環、Split時のpane限定、Toolウィンドウからの実行、メニュー配置、折りたたみバーの文字・シェブロン・余白クリック、折りたたみ中の新規エディタとSplit、2プロジェクト間の独立、Enable OFF時のグレーアウトと復帰）を利用者が実施し、idea.logにプラグイン由来の例外が無いことを確認して各PRをマージした。
+リリース手順: バージョン更新 + `changeNotes` 先頭に追記 → PR → CI緑でマージ → タグ → `buildPlugin` のZIPをMarketplaceへ手動アップロード（GitHub Releaseは作らない）。
 
 ---
 
 ## 26. 受け入れ基準
 
-以下をすべて満たした時点でv1.0とする。**2026-08-21 時点で全項目を満たしたことを確認し、v1.0 を確定した**（Grouping / Navigation / Sync / UI はサンドボックス手動確認＋platform test、Safety / API Stability は Plugin Verifier ゲート付き CI と `tools/api_audit.py` で確認）。
+受け入れは次の3つで判定する。個別のチェックリストはPRのTest planに書く。
 
-### Grouping
-
-- [x] 同一parentのopen filesが同一Groupになる
-- [x] 異なるparentは同名でも別Groupになる
-- [x] `hoge/users` と `huga/users` が別Groupになる
-- [x] 同名GroupはMinimal Unique Pathで識別できる
-- [x] Group Label Depth設定が表示名へ反映され、Project root到達時は `~/<プロジェクト名>/` が付く
-
-### Navigation
-
-- [x] Group clickで対象Groupへ切り替わる
-- [x] File clickで通常Editorが開く
-- [x] Group復帰時にlast active fileを復元する
-- [x] Group TabをDrag & Dropで並べ替えられ、順序がProject再起動後も保持される
-- [x] 並べ替え後に新しく開いたGroupはユーザー順序の後ろに既定ソートで並ぶ
-- [ ] File TabをGroup内でDrag & Dropで並べ替えられ、順序がrefresh / Project再起動後も保持される（v1.3、7.2）
-- [ ] File Tabの並べ替えでディスク上のファイルは移動しない。ほかのGroupへは移せない（v1.3、7.2）
-
-### Close（v1.1）
-
-- [ ] File Tab右側の×でそのファイルが閉じる（active / 非activeどちらのタブでも）
-- [ ] File Tab右クリック →「閉じる」でそのファイルが閉じる。右クリックでは切り替わらない
-- [ ] Split Left / Rightで同じファイルを開き、片方のHeaderから閉じると **そのpaneだけ** 閉じる
-- [ ] Tab placement: None でも上記が動く
-- [ ] Group Tab右クリック →「グループを閉じる」でそのGroupの全fileが閉じる。Group Tabに×は無い
-- [ ] 「グループを閉じる」でHeader自身のfile（ownFile）が含まれていても例外なく閉じる
-
-### Sync
-
-- [x] file openに追従
-- [x] file closeに追従
-- [x] selection変更に追従
-- [x] renameに追従
-- [x] moveに追従
-- [x] deleteに追従
-- [x] modified状態変更に追従
-- [x] unrelated/content-only VFS eventで不要なGroup rebuildをしない
-
-### UI / Usability
-
-- [x] Editor上部へ表示される
-- [x] Light/Darkで視認性に問題がない
-- [x] UI scale変更で破綻しない
-- [x] 長いlabelでレイアウト崩壊しない
-- [x] Directory Group / File Tabsが複数行へwrapしない
-- [x] overflow時も全Group/Fileへ到達できる
-- [x] active Group / Fileを常に識別できる
-- [x] modified fileを識別できる
-- [x] full pathをTooltipから確認できる
-- [x] 標準Editor Tabsを残した状態でも利用できる
-- [x] Tab placement Noneでも利用できる
-- [x] v1.0 Usability Reviewで日常利用を妨げる重大な不足が残っていない
-
-### Safety / API Stability
-
-- [x] deprecated API使用 0件
-- [x] Scheduled-for-removal API使用 0件
-- [x] Experimental API使用 0件
-- [x] Internal API使用 0件
-- [x] OverrideOnly / NonExtendable の契約違反 0件
-- [x] reflection不使用
-- [x] Plugin VerifierのAPI安定性ゲートが全対象IDEで通過する
-- [x] Editor本体の操作を妨害しない
-- [x] Project close後に参照/leakを残さない
+1. 自動テスト（24.1 / 24.2）とカバレッジゲート（24.5）が通る
+2. Plugin Verifierが警告0で Compatible（24.4）
+3. 利用者によるサンドボックス確認（24.3）で `idea.log` にプラグイン由来の例外が無い
 
 ---
 
