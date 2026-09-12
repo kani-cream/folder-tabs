@@ -1,8 +1,7 @@
 package com.github.kanicream.foldertabs.actions
 
+import com.github.kanicream.foldertabs.FolderTabsPlatformTestCase
 import com.github.kanicream.foldertabs.service.FakeFileEditor
-import com.github.kanicream.foldertabs.service.GroupedTabsProjectService
-import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -10,42 +9,10 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.TestActionEvent
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 /** Issue #24: the Next / Previous Folder Group actions are registered, enabled correctly and move the selection. */
-class NavigateGroupActionTest : BasePlatformTestCase() {
-
-    private val service get() = GroupedTabsProjectService.getInstance(project)
-    private val editors get() = FileEditorManager.getInstance(project)
-    private var savedDepth = 0
-
-    override fun setUp() {
-        super.setUp()
-        savedDepth = FolderTabsSettings.getInstance().groupLabelDepth
-        FolderTabsSettings.getInstance().groupLabelDepth = 1
-    }
-
-    override fun tearDown() {
-        try {
-            FolderTabsSettings.getInstance().groupLabelDepth = savedDepth
-        } finally {
-            super.tearDown()
-        }
-    }
-
-    private fun open(path: String): VirtualFile = myFixture.addFileToProject(path, "").virtualFile.also {
-        editors.openFile(it, true)
-        flush()
-    }
-
-    private fun flush() {
-        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        service.refreshNow()
-    }
+class NavigateGroupActionTest : FolderTabsPlatformTestCase() {
 
     private fun action(id: String): AnAction = checkNotNull(ActionManager.getInstance().getAction(id)) { "$id is not registered" }
 
@@ -92,7 +59,7 @@ class NavigateGroupActionTest : BasePlatformTestCase() {
     fun testNextGroupUsesTheFileEditorFromTheDataContext() {
         val a = open("orders/a.go")
         open("users/b.go")
-        val editor = editors.getAllEditors(a).single()
+        val editor = editorOf(a)
         val context = SimpleDataContext.getSimpleContext(PlatformDataKeys.FILE_EDITOR, editor, projectContext())
         perform(action(NextGroupAction.ID), context)
         assertEquals("b.go", editors.selectedFiles.first().name)

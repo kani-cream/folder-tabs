@@ -1,49 +1,33 @@
 package com.github.kanicream.foldertabs.service
 
+import com.github.kanicream.foldertabs.FolderTabsPlatformTestCase
 import com.github.kanicream.foldertabs.order.FileOrderState
 import com.github.kanicream.foldertabs.order.GroupOrderState
-import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.PlatformTestUtil
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 /** Design sections 7.1, 10, 19, 24.2: VFS follow-up, group order, modified flag. */
-class GroupedTabsSyncTest : BasePlatformTestCase() {
+class GroupedTabsSyncTest : FolderTabsPlatformTestCase() {
 
-    private val service get() = GroupedTabsProjectService.getInstance(project)
-    private val editors get() = FileEditorManager.getInstance(project)
-    private var savedDepth = 0
+    /** The modified-flag tests edit the document, so it must not start empty. */
+    override val fileContent: String = "x"
 
     override fun setUp() {
         super.setUp()
-        savedDepth = FolderTabsSettings.getInstance().groupLabelDepth
-        FolderTabsSettings.getInstance().groupLabelDepth = 1
         GroupOrderState.getInstance(project).update { emptyList() }
         FileOrderState.getInstance(project).update { emptyMap() }
     }
 
     override fun tearDown() {
         try {
-            FolderTabsSettings.getInstance().groupLabelDepth = savedDepth
             GroupOrderState.getInstance(project).update { emptyList() }
             FileOrderState.getInstance(project).update { emptyMap() }
         } finally {
             super.tearDown()
         }
-    }
-
-    private fun open(path: String): VirtualFile = myFixture.addFileToProject(path, "x").virtualFile.also {
-        editors.openFile(it, true)
-        flush()
-    }
-
-    private fun flush() {
-        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        service.refreshNow()
     }
 
     private fun groupNames() = service.model.groups.map { it.displayName }

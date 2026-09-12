@@ -1,45 +1,11 @@
 package com.github.kanicream.foldertabs.service
 
+import com.github.kanicream.foldertabs.FolderTabsPlatformTestCase
 import com.github.kanicream.foldertabs.model.GroupDirection
-import com.github.kanicream.foldertabs.settings.FolderTabsSettings
-import com.intellij.openapi.fileEditor.FileEditor
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.testFramework.PlatformTestUtil
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 /** Design section 8.4 / issue #24: keyboard navigation between the groups a header shows. */
-class GroupNavigationServiceTest : BasePlatformTestCase() {
-
-    private val service get() = GroupedTabsProjectService.getInstance(project)
-    private val editors get() = FileEditorManager.getInstance(project)
-    private var savedDepth = 0
-
-    override fun setUp() {
-        super.setUp()
-        savedDepth = FolderTabsSettings.getInstance().groupLabelDepth
-        FolderTabsSettings.getInstance().groupLabelDepth = 1
-    }
-
-    override fun tearDown() {
-        try {
-            FolderTabsSettings.getInstance().groupLabelDepth = savedDepth
-        } finally {
-            super.tearDown()
-        }
-    }
-
-    private fun open(path: String): VirtualFile = myFixture.addFileToProject(path, "").virtualFile.also {
-        editors.openFile(it, true)
-        flush()
-    }
-
-    private fun flush() {
-        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        service.refreshNow()
-    }
-
-    private fun editorOf(file: VirtualFile): FileEditor = editors.getAllEditors(file).single()
+class GroupNavigationServiceTest : FolderTabsPlatformTestCase() {
 
     private fun selected(): VirtualFile = editors.selectedFiles.first()
 

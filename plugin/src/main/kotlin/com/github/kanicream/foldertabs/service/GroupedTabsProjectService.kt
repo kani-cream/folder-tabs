@@ -251,9 +251,8 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         if (!registry.contains(editor)) return false
         refreshNow()
         val panel = registry.panelOf(editor) ?: return false
-        val groups = panel.renderedModel.groups
-        val current = groups.firstOrNull { it.orderKey == panel.activeGroup?.orderKey }
-        val target = GroupNavigation.adjacent(groups, current, direction) ?: return false
+        // activeGroup is an element of renderedModel.groups: both are set by the same render().
+        val target = GroupNavigation.adjacent(panel.renderedModel.groups, panel.activeGroup, direction) ?: return false
         // Same focus target as a header click, so the opener lands in this editor's pane (13).
         openGroup(target, editor.preferredFocusedComponent ?: editor.component)
         return true
