@@ -115,7 +115,7 @@ class TabStrip(
             val extras = popupExtras()
             if (extras.isNotEmpty()) {
                 addSeparator()
-                extras.forEach(::add)
+                addAll(extras)
             }
         }
     }

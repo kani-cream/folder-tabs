@@ -12,9 +12,9 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.Component
-import java.awt.Container
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
+import javax.swing.SwingUtilities
 
 /** Issue #26 / design section 4.1.3: a header collapses to a one-line bar and expands again. */
 class GroupedTabsPanelCollapseTest : BasePlatformTestCase() {
@@ -35,12 +35,7 @@ class GroupedTabsPanelCollapseTest : BasePlatformTestCase() {
     private fun panel(navigator: FolderTabsNavigator = RecordingNavigator()): GroupedTabsPanel =
         GroupedTabsPanel(project, a, navigator).also { Disposer.register(testRootDisposable, it) }
 
-    private fun descendants(c: Component): Sequence<Component> = sequence {
-        yield(c)
-        if (c is Container) c.components.forEach { yieldAll(descendants(it)) }
-    }
-
-    private fun shows(panel: GroupedTabsPanel, part: JComponent): Boolean = descendants(panel.component).any { it === part }
+    private fun shows(panel: GroupedTabsPanel, part: JComponent): Boolean = SwingUtilities.isDescendingFrom(part, panel.component)
 
     private fun stripsShown(panel: GroupedTabsPanel) = panel.stripsForTest().all { shows(panel, it.component) }
 

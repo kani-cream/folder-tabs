@@ -240,7 +240,11 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     override fun setHeadersCollapsed(collapsed: Boolean) {
         if (headersCollapsed == collapsed) return
         headersCollapsed = collapsed
-        registry.all().forEach { (_, panel) -> panel.setCollapsed(collapsed) }
+        // Fail-safe (design section 23): one header's Swing trouble must not leave the others behind.
+        registry.all().forEach { (editor, panel) ->
+            runCatching { panel.setCollapsed(collapsed) }
+                .onFailure { log.warn("Folder Tabs: could not ${if (collapsed) "collapse" else "expand"} the header of ${editor.file}", it) }
+        }
     }
 
     // ---- keyboard navigation (design section 8.4, issue #24) ---------------------------
