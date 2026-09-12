@@ -79,6 +79,17 @@ intellijPlatform {
         name = "Folder Tabs"
         version = project.version.toString()
         changeNotes = """
+            <b>1.4.0</b>
+            <ul>
+              <li>Keyboard navigation between groups: new <i>Next Folder Group</i> / <i>Previous Folder Group</i>
+                  actions (Window &gt; Editor Tabs, Find Action) move to the adjacent directory group and open the
+                  file you last used there, wrapping at the ends; in split editors they cycle through the focused
+                  pane's groups only. No default shortcut: assign one in Settings &gt; Keymap &gt; Plugins &gt; Folder Tabs.</li>
+              <li>Collapse the header when you need the space: <i>Collapse Folder Tabs</i> (Window &gt; Editor Tabs,
+                  any tab's right-click menu, or a shortcut of your choice) shrinks the header to a single line showing
+                  the current group and file; click that line or toggle again to expand. Per project, remembered until
+                  the IDE is closed; open files, ordering and settings are untouched.</li>
+            </ul>
             <b>1.3.1</b>
             <ul>
               <li>Saved group and file order now follows a directory or file rename, move or delete even

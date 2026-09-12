@@ -1474,6 +1474,16 @@ Reddit / 利用者フィードバックへの対応:
 
 - 全エディタを閉じた状態でのrename / move / deleteが保存済みのGroup順・File順に追従しない不具合を修正（Issue #32、7.1 / 7.2 / 10）。`VfsChangeClassifier` は open file が無くてもrename / deleteのURLを収集する。`structureChanged` と content変更はopen fileに限定されたままなので、refresh経路は増えない。回帰テストは `GroupedTabsSyncTest`。
 
+### v1.4 - Keyboard & Collapse（2026-09-12）
+
+Reddit / 利用者フィードバックへの対応。どちらも `Window > Editor Tabs` にアクションを追加し、既定ショートカットは持たない（Keymapで割り当て）。
+
+- Next / Previous Folder Group アクションによるGroup間のキーボード移動。端で循環、Split時はフォーカス中paneのGroup列のみ、実行前に `refreshNow()`（Issue #24、8.4、PR #36）
+- Headerの1行折りたたみ `Collapse Folder Tabs`。Projectごと・永続化なし、`CollapsedHeaderBar` の全面クリックで展開、Enable OFFでリセット（Issue #26、4.1.3、PR #37）
+- Koverによるカバレッジ計測と `koverVerify`（行80%）を `check` に組み込み。1.4.0時点で行 96.9% / 分岐 76.6%、226テスト（24.x、PR #38）
+
+サンドボックスでの手動確認（Keymap割り当てと循環、Split時のpane限定、Toolウィンドウからの実行、メニュー配置、折りたたみバーの文字・シェブロン・余白クリック、折りたたみ中の新規エディタとSplit、2プロジェクト間の独立、Enable OFF時のグレーアウトと復帰）を利用者が実施し、idea.logにプラグイン由来の例外が無いことを確認して各PRをマージした。
+
 ---
 
 ## 26. 受け入れ基準
