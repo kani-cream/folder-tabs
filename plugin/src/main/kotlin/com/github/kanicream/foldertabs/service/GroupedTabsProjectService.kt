@@ -241,6 +241,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     fun refreshNow() {
         if (project.isDisposed) return
         pruneStaleHeaders()
+        pruneStalePaneTrackers()
         val policy = FolderTabsSettings.getInstance().labelPolicy(project.name)
         val groupOrder = GroupOrderState.getInstance(project).savedUrls
         val fileOrder = FileOrderState.getInstance(project).saved
@@ -312,6 +313,19 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         requestRefresh()
     }
 
+    /**
+     * Drops the last-active state of split panes the IDE no longer lists (their window was
+     * closed): kept, those entries would hold the disposed window object — and whatever it still
+     * references — until the project closes. A listing *failure* keeps the entry; only a listing
+     * that answers "not one of my windows" prunes it.
+     */
+    private fun pruneStalePaneTrackers() {
+        val stale = lastActiveByPane.keys.filter { pane ->
+            pane != null && runCatching { paneFiles(pane) == null }.getOrDefault(false)
+        }
+        if (stale.isNotEmpty()) lastActiveByPane = lastActiveByPane - stale.toSet()
+    }
+
     /** Drops headers whose editor the platform no longer lists (safety net for missed disposals). */
     private fun pruneStaleHeaders() {
         val live = editorManager().allEditors.toSet()
@@ -351,6 +365,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     /** Test hook: the header attached to [editor]. */
     internal fun panelForTest(editor: FileEditor): GroupedTabsPanel = registry.panelOf(editor)!!
+
+    /** Test hook: the pane keys currently holding last-active state (`null` = project-wide fallback). */
+    internal fun paneTrackerKeysForTest(): Set<Any?> = lastActiveByPane.keys
 
     companion object {
         fun getInstance(project: Project): GroupedTabsProjectService =

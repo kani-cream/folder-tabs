@@ -167,6 +167,20 @@ class GroupedTabsProjectServiceTest : BasePlatformTestCase() {
         assertEquals(listOf("orders", "users"), groupsShownFor(l))
     }
 
+    fun testLastActiveStateOfAClosedPaneIsDroppedAndTheRestKept() {
+        usePrefixPanes()
+        val l = open("users/l_a.go")
+        val r = open("users/r_x.go")
+        service.onSelectionChanged(l, editorOf(l))
+        service.onSelectionChanged(r, editorOf(r))
+        flush()
+        assertTrue(service.paneTrackerKeysForTest().containsAll(setOf<Any?>("L", "R")))
+        // The IDE closed pane R (it no longer lists that window); L and the project-wide fallback stay.
+        service.paneFilesForTest = { pane -> if (pane == "L") editors.openFiles.toList() else null }
+        flush()
+        assertEquals(setOf<Any?>(null, "L"), service.paneTrackerKeysForTest())
+    }
+
     fun testLastActiveFileIsRememberedPerPane() {
         usePrefixPanes()
         val a = open("users/l_a.go")
