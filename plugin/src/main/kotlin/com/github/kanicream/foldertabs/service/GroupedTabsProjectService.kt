@@ -152,6 +152,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
             attachAllOpenEditors()
         } else {
             registry.all().forEach { (editor, _) -> detachHeader(editor) }
+            headersCollapsed = false // a fresh start when the feature comes back (design section 4.1.3)
         }
     }
 
@@ -227,6 +228,23 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         if (urls.isEmpty()) return
         FileOrderState.getInstance(project).update { FileOrder.applyReorder(it, group.orderKey, urls) }
         requestRefresh()
+    }
+
+    // ---- collapsed headers (design section 4.1.3, issue #26) ---------------------------
+
+    /** Whether this project's headers show their one-line bar. Runtime only: every session starts expanded. */
+    var headersCollapsed: Boolean = false
+        private set
+
+    /** Collapses or expands every header of the project; headers attached later follow. Nothing else changes. */
+    override fun setHeadersCollapsed(collapsed: Boolean) {
+        if (headersCollapsed == collapsed) return
+        headersCollapsed = collapsed
+        // Fail-safe (design section 23): one header's Swing trouble must not leave the others behind.
+        registry.all().forEach { (editor, panel) ->
+            runCatching { panel.setCollapsed(collapsed) }
+                .onFailure { log.warn("Folder Tabs: could not ${if (collapsed) "collapse" else "expand"} the header of ${editor.file}", it) }
+        }
     }
 
     // ---- keyboard navigation (design section 8.4, issue #24) ---------------------------
@@ -314,6 +332,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         )
         Disposer.register(this, panel)
         runCatching {
+            panel.setCollapsed(headersCollapsed)
             editorManager().addTopComponent(editor, panel.component)
             registry.register(editor, panel)
             // Release the header when the platform disposes the editor (design section 11.2).
@@ -386,5 +405,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     companion object {
         fun getInstance(project: Project): GroupedTabsProjectService =
             project.getService(GroupedTabsProjectService::class.java)
+
+        /** The service of a live project; `null` for no project or one being closed (action data contexts). */
+        fun getInstanceOrNull(project: Project?): GroupedTabsProjectService? =
+            project?.takeUnless { it.isDisposed }?.let(::getInstance)
     }
 }

@@ -1,9 +1,7 @@
 package com.github.kanicream.foldertabs.editor
 
-import com.github.kanicream.foldertabs.model.DirectoryGroupModel
-import com.github.kanicream.foldertabs.ui.FolderTabsNavigator
+import com.github.kanicream.foldertabs.NoopFolderTabsNavigator
 import com.github.kanicream.foldertabs.ui.GroupedTabsPanel
-import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.util.Disposer
@@ -35,17 +33,10 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
         override fun hashCode(): Int = 0
     }
 
-    private object NoopNavigator : FolderTabsNavigator {
-        override fun openFile(file: VirtualFile, pane: JComponent?) = Unit
-        override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) = Unit
-        override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
-        override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) = Unit
-        override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) = Unit
-        override fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>) = Unit
-    }
+    private val noopNavigator = NoopFolderTabsNavigator()
 
     private fun panel(file: VirtualFile): GroupedTabsPanel =
-        GroupedTabsPanel(project, file, NoopNavigator).also { Disposer.register(testRootDisposable, it) }
+        GroupedTabsPanel(project, file, noopNavigator).also { Disposer.register(testRootDisposable, it) }
 
     fun testEqualButDistinctEditorsGetSeparateEntries() {
         val file = LightVirtualFile("a.txt")

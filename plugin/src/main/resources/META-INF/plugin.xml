@@ -41,5 +41,9 @@
         <action id="FolderTabs.PreviousGroup" class="com.github.kanicream.foldertabs.actions.PreviousGroupAction">
             <add-to-group group-id="EditorTabsGroup" anchor="after" relative-to-action="FolderTabs.NextGroup"/>
         </action>
+        <!-- Issue #26: per-project, runtime-only collapse of the header to a one-line bar. -->
+        <action id="FolderTabs.ToggleCollapsed" class="com.github.kanicream.foldertabs.actions.ToggleCollapsedAction">
+            <add-to-group group-id="EditorTabsGroup" anchor="after" relative-to-action="FolderTabs.PreviousGroup"/>
+        </action>
     </actions>
 </idea-plugin>

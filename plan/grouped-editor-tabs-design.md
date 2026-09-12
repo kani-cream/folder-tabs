@@ -164,6 +164,7 @@ huga/users
 - グループ選択からファイル選択へのナビゲーション
 - Group再選択時にLast Active Fileを復元
 - Next / Previous Folder Group アクションでGroup間をキーボード移動できる。既定キーは持たず、IDEのKeymapで割り当てる（v1.4、8.4参照）
+- Headerを1行のバーに一時的に折りたためる（Projectごと、再起動でリセット。v1.4、4.1.3参照）
 - File Tab選択で通常のIntelliJ Editorを開く
 - Editor split が存在してもEditor本体を壊さず安全に動作する。各paneのHeaderはそのpaneで開いているファイルだけを表示する（v1.3、13参照）
 - `Tab placement: None` と標準タブ併用の両方で利用できる
@@ -260,6 +261,22 @@ controller.go | *model.go | service.go
 独自の固定色には依存しない。modified状態の取得には、実装時点でStable PublicであるAPIだけを使用する。
 
 2026.2時点では `FileDocumentManager.isFileModified(VirtualFile)` が候補であり、実装時にannotationとPlugin Verifierで再確認する。
+
+### 4.1.3 折りたたみ（v1.4、Issue #26）
+
+Editor領域を一時的に取り戻したいユーザー向けに、プラグインを無効化せずHeaderを1行に折りたためる。
+
+```text
+▾ users › service.go                                 折りたたみ中（1行）
+─────────────────────────────────────────────────────
+                    Editor
+```
+
+- **状態**: Project Serviceのランタイム状態 `headersCollapsed`。**Projectごと**で、**永続化しない**（IDE再起動後は常に展開。恒久的に消したい場合は21の Enable をOFFにする）。Settingsの状態は一切変更しない。Enable をOFFにすると折りたたみ状態もリセットされ、再度ONにしたHeaderは展開状態で付く。Enable がOFFの間、トグルは無効。
+- **見た目**: 2段のTab Stripを外し、代わりに `CollapsedHeaderBar`（展開シェブロン `AllIcons.General.ChevronDown` + 「`<Group表示名> › <ファイル名>`」）を1行表示する。ファイル名は4.1.2の modified `*` 前置を含み、Groupが無いファイルはファイル名のみ。Tooltipは「Expand Folder Tabs」。
+- **入り口**: `FolderTabs.ToggleCollapsed`（`DumbAwareToggleAction`、表示名 Collapse Folder Tabs、折りたたみ中はチェック表示）。`Window > Editor Tabs` の Previous Folder Group の直後、各Tabの右クリックメニュー（Close / Close Group の下にセパレータ付き）、Find Action、Keymap（既定キーなし）。折りたたみ中はバー全体の左クリックで展開する。クリック判定はプラットフォームの `ClickListener`（同じ位置での press / release、主ボタン、popup trigger以外）で、バーのパネルとラベルの両方に付ける（Tooltipを持つラベルは自分がマウスイベントの受け手になるため、パネルだけでは文字の上のクリックが届かない）。
+- **保持されるもの**: Header自体はEditorに付いたままで、Tab Stripは非表示中もrenderされ続ける（モデル、Group / File順、Last Active File、Split paneの帰属はすべてそのまま）。折りたたみ中に開いたEditorのHeaderも折りたたみ状態で付く。展開はStripを差し戻すだけで、再構築は起きない。
+- **API**: Stable Public API Only（`DumbAwareToggleAction`、`JBLabel`、`JBPanel`、`ActionManager.getAction`）。
 
 ---
 
@@ -961,6 +978,8 @@ v1.0のFolder Tabsは **Navigation Only** とし、独自Close操作を実装し
 標準Editor Tabsを非表示（Tab placement: None）にしてFolder Tabsだけで運用すると、タブを閉じる手段がIDE標準ショートカットしかなく日常利用で明確に不便なため、**v1.1でFile TabにIDE標準と同じClose操作を追加した**（3.1の小規模UX改善条件を満たす）。
 
 ### 15.1 v1.1で提供するもの
+
+（v1.4）各Tabの右クリックメニューには、Close系エントリの下にセパレータを挟んで `Collapse Folder Tabs` トグル（4.1.3）も並ぶ。TabStripは `popupExtras` として受け取るだけで、その中身は知らない。
 
 - File Tab右側のClose button（標準Editor Tabと同じ `AllIcons.Actions.Close` / `CloseHovered`、`TabInfo.setTabLabelActions(group, ActionPlaces.EDITOR_TAB)`、標準Editor Tabsと同様に `setTabLabelActionsAutoHide(false)`）。**JBTabsの `ActionPanel` は `getActionUpdateThread() == EDT` のactionだけをボタン化する**ため、`CloseTabAction` は `ActionUpdateThread.EDT` を宣言する（BGT既定のままだとボタンが生成されない）。New UIでは標準と同じく active / hover中のタブにだけ描画される
 - File Tab右クリックメニューの「閉じる」: JBTabs自身のpopup（`JBTabs.setPopupGroup(supplier, ActionPlaces.EDITOR_TAB_POPUP, addNavigationGroup = true)`）に1項目追加する。v1.0からある Select Next / Previous Tab はそのまま残る。対象タブは `JBTabs.getTargetInfo()`（popup中は右クリックしたタブ）。独自popupでJBTabsのpopupを置き換えてはならない（ナビゲーション項目が消える）

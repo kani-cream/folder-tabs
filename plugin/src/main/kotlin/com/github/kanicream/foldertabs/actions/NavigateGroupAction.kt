@@ -36,8 +36,7 @@ abstract class NavigateGroupAction(private val direction: GroupDirection) : Dumb
 
     private fun targetOf(e: AnActionEvent): Target? {
         val project = e.project ?: return null
-        if (project.isDisposed) return null
-        val service = GroupedTabsProjectService.getInstance(project)
+        val service = GroupedTabsProjectService.getInstanceOrNull(project) ?: return null
         val editor = listOfNotNull(e.getData(PlatformDataKeys.FILE_EDITOR), FileEditorManager.getInstance(project).selectedEditor)
             .firstOrNull(service::hasHeader)
             ?: return null

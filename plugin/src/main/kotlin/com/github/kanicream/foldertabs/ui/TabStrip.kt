@@ -3,6 +3,7 @@ package com.github.kanicream.foldertabs.ui
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.DefaultActionGroup
@@ -74,6 +75,8 @@ class TabStrip(
     private val close: Close? = null,
     private val isActive: () -> Boolean = { true },
     private val focusTarget: () -> JComponent? = { null },
+    /** Entries appended to every tab's right-click menu after the close entry (design section 4.1.3). */
+    private val popupExtras: () -> List<AnAction> = { emptyList() },
 ) {
 
     data class Item(val key: Any, val text: String, val tooltip: String, val icon: Icon? = null)
@@ -107,7 +110,14 @@ class TabStrip(
     private val popupGroupSupplier = java.util.function.Supplier<ActionGroup> {
         val close = close
         val key = tabs.targetInfo?.`object`
-        if (close == null || key == null) DefaultActionGroup() else closeGroup(key, close)
+        if (close == null || key == null) return@Supplier DefaultActionGroup()
+        closeGroup(key, close).apply {
+            val extras = popupExtras()
+            if (extras.isNotEmpty()) {
+                addSeparator()
+                addAll(extras)
+            }
+        }
     }
 
     private val underline = object : ActiveUnderline(tabs, isActive) {
@@ -269,7 +279,7 @@ class TabStrip(
             .also { it.dragDelegate = dragDelegate }
     }
 
-    private fun closeGroup(key: Any, close: Close): ActionGroup =
+    private fun closeGroup(key: Any, close: Close): DefaultActionGroup =
         DefaultActionGroup(CloseTabAction(key, close.menuText, close.onClose))
 
     private fun onPointerDown() {
