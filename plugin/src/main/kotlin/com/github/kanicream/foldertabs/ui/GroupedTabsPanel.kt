@@ -1,11 +1,14 @@
 package com.github.kanicream.foldertabs.ui
 
 import com.github.kanicream.foldertabs.FolderTabsBundle
+import com.github.kanicream.foldertabs.actions.ToggleCollapsedAction
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.FileTabModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Iconable
@@ -45,13 +48,22 @@ class GroupedTabsPanel(
     private val groupTabs = TabStrip(
         project, this, onSelect = ::onGroupSelected, onReorder = ::onGroupsReordered,
         close = TabStrip.Close(::onGroupClose, FolderTabsBundle.message("group.close"), showButton = false),
-        isActive = isEditorActive, focusTarget = editorFocusTarget,
+        isActive = isEditorActive, focusTarget = editorFocusTarget, popupExtras = ::popupExtras,
     )
     private val fileTabs = TabStrip(
         project, this, onSelect = ::onFileSelected, onReorder = ::onFilesReordered,
         close = TabStrip.Close(::onFileClose, FolderTabsBundle.message("tab.close"), showButton = true),
-        isActive = isEditorActive, focusTarget = editorFocusTarget,
+        isActive = isEditorActive, focusTarget = editorFocusTarget, popupExtras = ::popupExtras,
     )
+
+    /** Stand-in shown instead of the two strips while collapsed (design section 4.1.3). */
+    private val collapsedBar = CollapsedHeaderBar(onExpand = { navigator.setHeadersCollapsed(false) })
+
+    /** The two strips; swapped against [collapsedBar] as a whole. */
+    private val strips: JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
+        add(groupTabs.component, BorderLayout.NORTH)
+        add(fileTabs.component, BorderLayout.SOUTH)
+    }
 
     private val focusListener = PropertyChangeListener {
         groupTabs.repaintActiveState()
@@ -68,8 +80,21 @@ class GroupedTabsPanel(
             onShown()
         }
     }.apply {
-        add(groupTabs.component, BorderLayout.NORTH)
-        add(fileTabs.component, BorderLayout.SOUTH)
+        add(strips, BorderLayout.CENTER)
+    }
+
+    /** Whether the header shows its one-line bar instead of the strips (design section 4.1.3). */
+    var isCollapsed: Boolean = false
+        private set
+
+    /** Swaps the strips against the one-line bar; the strips keep their state and stay rendered. */
+    fun setCollapsed(collapsed: Boolean) {
+        if (isCollapsed == collapsed) return
+        isCollapsed = collapsed
+        component.remove(if (collapsed) strips else collapsedBar.component)
+        component.add(if (collapsed) collapsedBar.component else strips, BorderLayout.CENTER)
+        component.revalidate()
+        component.repaint()
     }
 
     /** Currently rendered group of [ownFile]; null until the first render finds it. */
@@ -95,6 +120,7 @@ class GroupedTabsPanel(
             items = group?.files.orEmpty().map { TabStrip.Item(key = it.file, text = fileText(it), tooltip = it.fullPath, icon = fileIcon(it.file)) },
             selectedKey = ownFile,
         )
+        updateCollapsedBar()
         // Tabs were added after the header joined the editor: make the editor re-layout.
         component.revalidate()
         component.repaint()
@@ -102,9 +128,23 @@ class GroupedTabsPanel(
 
     /** Targeted update for the modified indicator (design section 19): no strip rebuild. */
     fun updateModified(file: VirtualFile, modified: Boolean) {
-        val tab = activeGroup?.files?.firstOrNull { it.file == file } ?: return
-        fileTabs.updateText(file, fileText(tab.copy(modified = modified)))
+        val tab = tabOf(file) ?: return
+        val text = fileText(tab.copy(modified = modified))
+        fileTabs.updateText(file, text)
+        if (file == ownFile) updateCollapsedBar(text)
     }
+
+    /** The bar names the header's own group and file; the file text carries the modified marker. */
+    private fun updateCollapsedBar(ownText: String = tabOf(ownFile)?.let(::fileText) ?: ownFile.name) {
+        collapsedBar.update(activeGroup?.displayName, ownText)
+    }
+
+    /** The active group's tab for [file], if it has one. */
+    private fun tabOf(file: VirtualFile): FileTabModel? = activeGroup?.files?.firstOrNull { it.file == file }
+
+    /** The tab popups' extra entries: the same Collapse toggle as `Window > Editor Tabs`, when registered. */
+    private fun popupExtras(): List<AnAction> =
+        listOfNotNull(ActionManager.getInstance().getAction(ToggleCollapsedAction.ID))
 
     /** Same icon the standard editor tabs show: file type plus read-status overlays, resolved lazily. */
     private fun fileIcon(file: VirtualFile): Icon? =
@@ -164,6 +204,9 @@ class GroupedTabsPanel(
 
     /** Test hook: the header's strips. */
     internal fun stripsForTest(): List<TabStrip> = listOf(groupTabs, fileTabs)
+
+    /** Test hook: the one-line bar shown while collapsed. */
+    internal fun collapsedBarForTest(): CollapsedHeaderBar = collapsedBar
 
     /** Test hook: the focus listener this header registered on the [KeyboardFocusManager]. */
     internal fun focusListenerForTest(): PropertyChangeListener = focusListener

@@ -1,5 +1,6 @@
 package com.github.kanicream.foldertabs.ui
 
+import com.github.kanicream.foldertabs.NoopFolderTabsNavigator
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.FileTabModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
@@ -17,7 +18,7 @@ import javax.swing.JPanel
 /** Issue #16: group tabs must be keyed by a stable identity so a modified-flag flip does not rebuild the strip. */
 class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
 
-    private class RecordingNavigator : FolderTabsNavigator {
+    private class RecordingNavigator : NoopFolderTabsNavigator() {
         val openedGroups = mutableListOf<DirectoryGroupModel>()
         val openedFiles = mutableListOf<VirtualFile>()
         val panes = mutableListOf<JComponent?>()
@@ -26,7 +27,6 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
         val closedGroups = mutableListOf<DirectoryGroupModel>()
         override fun openFile(file: VirtualFile, pane: JComponent?) { openedFiles += file; panes += pane }
         override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) { openedGroups += group; panes += pane }
-        override fun closeFile(file: VirtualFile, headerContext: DataContext) = Unit
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) { closedGroups += group }
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) { reordered += groupsInNewOrder }
         override fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>) { reorderedFiles += group to filesInNewOrder }

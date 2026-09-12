@@ -27,4 +27,7 @@ interface FolderTabsNavigator {
 
     /** The user dragged the file tabs of [group] into [filesInNewOrder] (leftmost first; design section 7.2). */
     fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>)
+
+    /** Collapse every header of the project to its one-line bar, or expand them again (design section 4.1.3). */
+    fun setHeadersCollapsed(collapsed: Boolean)
 }

@@ -55,6 +55,11 @@ are performed manually.
   and open the file you last used there, wrapping at the ends; in split editors
   they cycle through the groups of the focused pane only. They ship without a
   default shortcut, so assign one in `Settings > Keymap > Plugins > Folder Tabs`.
+- **Collapse when you need the space**: *Collapse Folder Tabs* (`Window > Editor
+  Tabs`, any tab's right-click menu, or a shortcut of your choice) shrinks the
+  header to a single line showing the current group and file; click that line or
+  toggle again to expand. Per project, remembered until the IDE is closed;
+  open files, ordering and the plugin settings stay as they are.
 - **Close from the header**: every file tab has the standard close button and a
   right-click *Close* entry; a group tab's right-click menu offers *Close
   Group* (all files of that directory). So the header works on its own with
