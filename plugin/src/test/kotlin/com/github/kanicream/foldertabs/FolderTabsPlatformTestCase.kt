@@ -10,14 +10,16 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 /**
  * Shared fixture for tests that drive the project service through the real editor manager:
- * plain directory names as group labels (depth 1, restored afterwards), and helpers to open a
- * file and to let the coalesced refresh (design section 19) run.
+ * plain directory names as group labels (depth 1), the application settings restored afterwards
+ * (depth and the master switch), and helpers to open a file and to let the coalesced refresh
+ * (design section 19) run.
  */
 abstract class FolderTabsPlatformTestCase : BasePlatformTestCase() {
 
     protected val service: GroupedTabsProjectService get() = GroupedTabsProjectService.getInstance(project)
     protected val editors: FileEditorManager get() = FileEditorManager.getInstance(project)
     private var savedDepth = 0
+    private var savedEnabled = true
 
     /** Content of the files [open] creates; a test that needs a non-empty document overrides it. */
     protected open val fileContent: String = ""
@@ -25,12 +27,15 @@ abstract class FolderTabsPlatformTestCase : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         savedDepth = FolderTabsSettings.getInstance().groupLabelDepth
+        savedEnabled = FolderTabsSettings.getInstance().enabled
         FolderTabsSettings.getInstance().groupLabelDepth = 1
     }
 
+    /** Application-level settings outlive the light project: whatever a test flipped is put back here. */
     override fun tearDown() {
         try {
             FolderTabsSettings.getInstance().groupLabelDepth = savedDepth
+            FolderTabsSettings.getInstance().enabled = savedEnabled
         } finally {
             super.tearDown()
         }

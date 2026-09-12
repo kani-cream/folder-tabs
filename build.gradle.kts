@@ -3,6 +3,7 @@ plugins {
     // 2.3.x compiler reads without -Xskip-metadata-version-check.
     kotlin("jvm") version "2.3.21" apply false
     id("org.jetbrains.intellij.platform") version "2.18.1" apply false
+    id("org.jetbrains.kotlinx.kover") version "0.9.9" apply false
 }
 
 allprojects {

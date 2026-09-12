@@ -120,11 +120,15 @@ as usual.
 ./gradlew build          # compile + tests
 ./gradlew runIde         # sandbox IDE with the plugin
 ./gradlew :plugin:verifyPlugin   # Plugin Verifier (API stability gate)
+./gradlew :plugin:koverHtmlReport   # coverage report (plugin/build/reports/kover/html)
 tools/api_audit.py <ide-dir> <fqcn>...   # list @Deprecated / @ApiStatus members
 ```
 
 The CI gate (build, tests, structure checks, Plugin Verifier) is described in
-[Privacy & Security](#privacy--security).
+[Privacy & Security](#privacy--security). `check` also runs Kover's verification:
+the build fails below 80% line coverage of the plugin sources (skipped when tests
+are excluded with `-x test`; a filtered `--tests` run leaves a partial report, so
+run the full test task before `koverVerify`).
 
 Design documents live in [`plan/`](plan/).
 

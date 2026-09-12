@@ -16,6 +16,12 @@ class NaturalOrderComparatorTest {
     }
 
     @Test
+    fun `equal numbers with different digit counts fall through to the rest of the name`() {
+        assertEquals(listOf("a01a.go", "a1b.go"), sorted("a1b.go", "a01a.go"))
+        assertEquals("same number, same rest: equal", 0, NaturalOrderComparator.compare("a01.go", "a1.go"))
+    }
+
+    @Test
     fun `numeric suffixes compare as numbers`() {
         assertEquals(
             listOf("file2.go", "file9.go", "file10.go"),

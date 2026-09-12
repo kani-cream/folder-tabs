@@ -35,21 +35,17 @@ class GroupedTabsProjectServiceTest : FolderTabsPlatformTestCase() {
 
     fun testDisablingRemovesHeadersAndEnablingRestoresThem() {
         val settings = FolderTabsSettings.getInstance()
-        try {
-            open("users/a.go")
-            assertTrue(service.headerCount >= 1)
-            settings.enabled = false
-            service.applySettings()
-            assertEquals(0, service.headerCount)
-            open("orders/b.go") // no headers while disabled
-            assertEquals(0, service.headerCount)
-            settings.enabled = true
-            service.applySettings()
-            flush()
-            assertTrue(service.headerCount >= 2)
-        } finally {
-            settings.enabled = true
-        }
+        open("users/a.go")
+        assertTrue(service.headerCount >= 1)
+        settings.enabled = false
+        service.applySettings()
+        assertEquals(0, service.headerCount)
+        open("orders/b.go") // no headers while disabled
+        assertEquals(0, service.headerCount)
+        settings.enabled = true
+        service.applySettings()
+        flush()
+        assertTrue(service.headerCount >= 2)
     }
 
     fun testCloseGroupClosesAllFilesOfThatGroupOnly() {
@@ -60,6 +56,14 @@ class GroupedTabsProjectServiceTest : FolderTabsPlatformTestCase() {
         service.closeGroup(users, DataContext.EMPTY_CONTEXT)
         flush()
         assertEquals(listOf("orders"), service.model.groups.map { it.displayName })
+    }
+
+    fun testCloseFileClosesJustThatFile() {
+        val a = open("users/a.go")
+        val c = open("users/c.go")
+        service.closeFile(a, DataContext.EMPTY_CONTEXT)
+        flush()
+        assertEquals(listOf(c), editors.openFiles.toList())
     }
 
     fun testOpenGroupRestoresLastActiveFile() {

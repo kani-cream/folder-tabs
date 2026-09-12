@@ -79,6 +79,7 @@ jobs:
           path: |
             **/build/reports/tests/**
             **/build/test-results/**
+            plugin/build/reports/kover/**
           if-no-files-found: ignore
           retention-days: 7
 

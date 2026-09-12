@@ -1353,6 +1353,10 @@ CIでは最低限、次を検証する。
 
 次期IDE / EAPでdeprecated等が新規検出された場合は、正式リリース前に置換候補を調査する。
 
+### 24.x カバレッジ（v1.4）
+
+計測は Kover（`org.jetbrains.kotlinx.kover`、plugin モジュール）。`./gradlew :plugin:koverHtmlReport` / `koverXmlReport` でレポートを出し、`koverVerify`（`check` に含まれる）で**行カバレッジ 80% 未満はビルド失敗**とする。2026-09-12 時点の実測は行 96.9% / 分岐 76.6%（226テスト）。80% 未満で残るのは Swing の `addNotify` フックと companion の静的初期化行だけで、テスト対象にしない。
+
 ---
 
 ## 25. 実装フェーズ
