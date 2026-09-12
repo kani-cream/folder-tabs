@@ -3,6 +3,8 @@ package com.github.kanicream.foldertabs.actions
 import com.github.kanicream.foldertabs.FolderTabsPlatformTestCase
 import com.github.kanicream.foldertabs.settings.FolderTabsSettings
 import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
@@ -40,6 +42,21 @@ class ToggleCollapsedActionTest : FolderTabsPlatformTestCase() {
         assertFalse(service.panelForTest(editorOf(a)).isCollapsed)
     }
 
+    fun testUpdatesOnTheEdt() {
+        assertEquals(ActionUpdateThread.EDT, action.actionUpdateThread)
+    }
+
+    /** Menus outside a project (the Welcome screen) show the entry disabled and unchecked; toggling it does nothing. */
+    fun testWithoutAProjectTheToggleIsInertAndDisabled() {
+        open("users/a.go")
+        val e = TestActionEvent.createTestEvent(action, DataContext.EMPTY_CONTEXT)
+        action.update(e)
+        assertFalse(e.presentation.isEnabled)
+        assertFalse(action.isSelected(e))
+        action.setSelected(e, true)
+        assertFalse(service.headersCollapsed)
+    }
+
     fun testEnabledWheneverAProjectIsAtHand() {
         val e = event()
         action.update(e)
@@ -47,14 +64,9 @@ class ToggleCollapsedActionTest : FolderTabsPlatformTestCase() {
     }
 
     fun testDisabledWhileThePluginIsTurnedOff() {
-        val settings = FolderTabsSettings.getInstance()
-        try {
-            settings.enabled = false
-            val e = event()
-            action.update(e)
-            assertFalse(e.presentation.isEnabled)
-        } finally {
-            settings.enabled = true
-        }
+        FolderTabsSettings.getInstance().enabled = false
+        val e = event()
+        action.update(e)
+        assertFalse(e.presentation.isEnabled)
     }
 }

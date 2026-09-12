@@ -49,19 +49,15 @@ class HeaderCollapseServiceTest : FolderTabsPlatformTestCase() {
     /** Turning the feature off in Settings also forgets the collapse: it comes back expanded. */
     fun testDisablingThePluginResetsTheCollapse() {
         val settings = FolderTabsSettings.getInstance()
-        try {
-            val a = open("users/a.go")
-            service.setHeadersCollapsed(true)
-            settings.enabled = false
-            service.applySettings()
-            assertFalse(service.headersCollapsed)
-            settings.enabled = true
-            service.applySettings()
-            flush()
-            assertFalse(service.panelForTest(editorOf(a)).isCollapsed)
-        } finally {
-            settings.enabled = true
-        }
+        val a = open("users/a.go")
+        service.setHeadersCollapsed(true)
+        settings.enabled = false
+        service.applySettings()
+        assertFalse(service.headersCollapsed)
+        settings.enabled = true
+        service.applySettings()
+        flush()
+        assertFalse(service.panelForTest(editorOf(a)).isCollapsed)
     }
 
     fun testSettingTheSameStateTwiceIsANoop() {

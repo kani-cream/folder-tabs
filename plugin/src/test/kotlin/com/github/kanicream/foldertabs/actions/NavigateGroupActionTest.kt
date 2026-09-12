@@ -3,6 +3,7 @@ package com.github.kanicream.foldertabs.actions
 import com.github.kanicream.foldertabs.FolderTabsPlatformTestCase
 import com.github.kanicream.foldertabs.service.FakeFileEditor
 import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
@@ -43,6 +44,18 @@ class NavigateGroupActionTest : FolderTabsPlatformTestCase() {
         for (id in listOf(NextGroupAction.ID, PreviousGroupAction.ID)) {
             assertEmpty("$id must be assigned by the user", action(id).shortcutSet.shortcuts.toList())
         }
+    }
+
+    /** The header registry is EDT-only state, so the actions must update on the EDT. */
+    fun testActionsUpdateOnTheEdt() {
+        for (id in listOf(NextGroupAction.ID, PreviousGroupAction.ID)) {
+            assertEquals(id, ActionUpdateThread.EDT, action(id).actionUpdateThread)
+        }
+    }
+
+    fun testDisabledWithoutAProject() {
+        val event = update(action(NextGroupAction.ID), DataContext.EMPTY_CONTEXT)
+        assertFalse(event.presentation.isEnabled)
     }
 
     fun testDisabledWhileNoEditorIsOpen() {

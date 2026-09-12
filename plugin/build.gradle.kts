@@ -4,6 +4,8 @@ import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 plugins {
     kotlin("jvm")
     id("org.jetbrains.intellij.platform")
+    // Coverage: `./gradlew :plugin:koverHtmlReport` (plugin/build/reports/kover/html) and koverXmlReport.
+    id("org.jetbrains.kotlinx.kover")
 }
 
 repositories {
@@ -37,6 +39,31 @@ tasks.test {
     testLogging {
         showStandardStreams = true
     }
+}
+
+kover {
+    currentProject {
+        instrumentation {
+            // Only the plugin's own classes: without this the agent transforms every class the
+            // headless IDE loads in the test JVM (about +50% test time, and a log of frame-computation
+            // errors for platform classes) for a report that is filtered to this package anyway.
+            includedClasses.add("com.github.kanicream.foldertabs.*")
+        }
+    }
+    reports {
+        verify {
+            // 80% line coverage gate (README > Development, plan section 24.x); koverVerify runs with `check`.
+            rule("plugin line coverage") {
+                minBound(80)
+            }
+        }
+    }
+}
+
+tasks.koverVerify {
+    // Without a test run there is no report and the rule would fail as "0% covered": skip the gate
+    // when tests were excluded on purpose (`./gradlew build -x test`).
+    onlyIf { "test" !in gradle.startParameter.excludedTaskNames }
 }
 
 tasks.buildSearchableOptions {

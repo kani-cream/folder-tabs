@@ -4,6 +4,8 @@ import com.github.kanicream.foldertabs.NoopFolderTabsNavigator
 import com.github.kanicream.foldertabs.model.DirectoryGroupModel
 import com.github.kanicream.foldertabs.model.FileTabModel
 import com.github.kanicream.foldertabs.model.GroupedTabsModel
+import com.intellij.openapi.actionSystem.ActionUiKind
+import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
@@ -25,9 +27,11 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
         val reordered = mutableListOf<List<DirectoryGroupModel>>()
         val reorderedFiles = mutableListOf<Pair<DirectoryGroupModel, List<VirtualFile>>>()
         val closedGroups = mutableListOf<DirectoryGroupModel>()
+        val closedFiles = mutableListOf<VirtualFile>()
         override fun openFile(file: VirtualFile, pane: JComponent?) { openedFiles += file; panes += pane }
         override fun openGroup(group: DirectoryGroupModel, pane: JComponent?) { openedGroups += group; panes += pane }
         override fun closeGroup(group: DirectoryGroupModel, headerContext: DataContext) { closedGroups += group }
+        override fun closeFile(file: VirtualFile, headerContext: DataContext) { closedFiles += file }
         override fun reorderGroups(groupsInNewOrder: List<DirectoryGroupModel>) { reordered += groupsInNewOrder }
         override fun reorderFiles(group: DirectoryGroupModel, filesInNewOrder: List<VirtualFile>) { reorderedFiles += group to filesInNewOrder }
     }
@@ -163,6 +167,17 @@ class GroupedTabsPanelRenderTest : BasePlatformTestCase() {
         val panel = panel()
         panel.render(model())
         assertTrue(panel.stripsForTest().last().isDraggingEnabledForTest())
+    }
+
+    /** The file tab's inline close button (design section 15.1) reports that file, not the header's own. */
+    fun testFileCloseButtonReportsThatFile() {
+        val navigator = RecordingNavigator()
+        val panel = panel(navigator)
+        panel.render(model())
+        val actions = checkNotNull(fileInfos(panel)[1].tabLabelActions) { "file tab has no close button" }
+        val close = actions.getChildren(null).filterIsInstance<CloseTabAction>().single()
+        close.actionPerformed(AnActionEvent.createEvent(close, DataContext.EMPTY_CONTEXT, null, "test", ActionUiKind.NONE, null))
+        assertEquals(listOf(b), navigator.closedFiles)
     }
 
     fun testCloseGroupResolvesToCurrentGroup() {
