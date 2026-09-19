@@ -138,6 +138,25 @@ class GroupedTabsProjectServiceTest : FolderTabsPlatformTestCase() {
         assertEquals(listOf("orders", "users"), groupsShownFor(l))
     }
 
+    fun testClosingAPaneDropsItsLastActiveTracker() {
+        usePrefixPanes()
+        val a = open("users/l_a.go")
+        val c = open("users/l_c.go")
+        listOf(a, c).forEach { service.headerShownForTest(editorOf(it)) }
+        flush()
+        service.onSelectionChanged(c, editorOf(c)) // pane L remembers c
+        assertTrue("L" in service.lastActivePaneKeysForTest())
+        // A listing that *fails* must not prune: the pane may well still exist.
+        service.paneFilesForTest = { error("transient listing failure") }
+        flush()
+        assertTrue("L" in service.lastActivePaneKeysForTest())
+        // The split was closed: the IDE no longer lists pane L, so its tracker goes too.
+        service.paneFilesForTest = { null }
+        flush()
+        assertFalse("L" in service.lastActivePaneKeysForTest())
+        assertTrue("project-wide fallback stays", null in service.lastActivePaneKeysForTest())
+    }
+
     fun testLastActiveFileIsRememberedPerPane() {
         usePrefixPanes()
         val a = open("users/l_a.go")

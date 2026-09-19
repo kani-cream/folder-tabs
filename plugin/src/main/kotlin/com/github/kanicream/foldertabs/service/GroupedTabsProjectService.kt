@@ -290,6 +290,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     fun refreshNow() {
         if (project.isDisposed) return
         pruneStaleHeaders()
+        pruneDeadPaneTrackers()
         val policy = FolderTabsSettings.getInstance().labelPolicy(project.name)
         val groupOrder = GroupOrderState.getInstance(project).savedUrls
         val fileOrder = FileOrderState.getInstance(project).saved
@@ -306,6 +307,19 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
             runCatching { panel.render(paneModels.modelFor(registry.paneOf(editor))) }
                 .onFailure { log.warn("Folder Tabs: header render failed for ${editor.file}", it) }
         }
+    }
+
+    /**
+     * Drops the last-active trackers of panes the IDE no longer lists (a closed split): their pane
+     * can never be resolved again, so keeping them only pins the disposed window and its components
+     * until the project closes. Only a definite "not listed" answer prunes; a listing that *fails*
+     * keeps the tracker (better a stale entry than history lost to a transient error).
+     */
+    private fun pruneDeadPaneTrackers() {
+        val dead = lastActiveByPane.keys.filter { pane ->
+            pane != null && runCatching { paneFiles(pane) == null }.getOrDefault(false)
+        }
+        if (dead.isNotEmpty()) lastActiveByPane = lastActiveByPane - dead.toSet()
     }
 
     /** Fail-safe (design section 23): a listing failure falls back to the project-wide model. */
@@ -401,6 +415,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     /** Test hook: the header attached to [editor]. */
     internal fun panelForTest(editor: FileEditor): GroupedTabsPanel = registry.panelOf(editor)!!
+
+    /** Test hook: the panes that currently hold a last-active tracker (`null` = project-wide fallback). */
+    internal fun lastActivePaneKeysForTest(): Set<Any?> = lastActiveByPane.keys
 
     companion object {
         fun getInstance(project: Project): GroupedTabsProjectService =
