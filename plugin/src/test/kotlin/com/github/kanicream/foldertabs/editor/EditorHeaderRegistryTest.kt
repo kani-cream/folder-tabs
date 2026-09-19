@@ -50,7 +50,6 @@ class EditorHeaderRegistryTest : BasePlatformTestCase() {
         registry.register(e2, p2)
 
         assertEquals(2, registry.size)
-        assertEquals(2, registry.editorsFor(file).size)
         assertSame(p1, registry.unregister(e1))
         assertFalse(registry.contains(e1))
         assertTrue(registry.contains(e2))

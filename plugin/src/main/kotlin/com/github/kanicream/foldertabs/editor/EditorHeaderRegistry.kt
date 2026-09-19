@@ -2,7 +2,6 @@ package com.github.kanicream.foldertabs.editor
 
 import com.github.kanicream.foldertabs.ui.GroupedTabsPanel
 import com.intellij.openapi.fileEditor.FileEditor
-import com.intellij.openapi.vfs.VirtualFile
 import java.awt.Component
 import java.util.IdentityHashMap
 
@@ -52,6 +51,4 @@ class EditorHeaderRegistry {
     fun paneOf(editor: FileEditor): Any? = panes[editor]
 
     fun all(): List<Pair<FileEditor, GroupedTabsPanel>> = panels.map { it.key to it.value }
-
-    fun editorsFor(file: VirtualFile): List<FileEditor> = panels.keys.filter { it.file == file }
 }
