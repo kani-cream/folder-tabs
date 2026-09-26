@@ -138,6 +138,19 @@ class GroupedTabsProjectServiceTest : FolderTabsPlatformTestCase() {
         assertEquals(listOf("orders", "users"), groupsShownFor(l))
     }
 
+    fun testTrackerOfAPaneTheIdeNoLongerListsIsDropped() {
+        usePrefixPanes()
+        val a = open("users/l_a.go")
+        service.headerShownForTest(editorOf(a))
+        flush()
+        service.onSelectionChanged(a, editorOf(a)) // creates the pane-L tracker
+        assertTrue("L" in service.trackedPanesForTest())
+        service.paneFilesForTest = { null } // the split was closed; the IDE lists no such pane
+        flush()
+        assertFalse("a closed pane's tracker must not outlive its window", "L" in service.trackedPanesForTest())
+        assertTrue("the project-wide fallback always stays", null in service.trackedPanesForTest())
+    }
+
     fun testLastActiveFileIsRememberedPerPane() {
         usePrefixPanes()
         val a = open("users/l_a.go")

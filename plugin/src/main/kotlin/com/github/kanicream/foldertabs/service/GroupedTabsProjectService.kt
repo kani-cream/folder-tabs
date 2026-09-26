@@ -57,7 +57,12 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     private val registry = EditorHeaderRegistry()
 
-    /** Last active file per group, per pane; the `null` pane is the project-wide fallback. */
+    /**
+     * Last active file per group, per pane; the `null` pane is the project-wide fallback.
+     * Trackers of panes the IDE no longer lists are dropped on refresh ([pruneDeadPaneTrackers]):
+     * without that, every closed split window would stay strongly referenced here until the
+     * project closes.
+     */
     private var lastActiveByPane: Map<Any?, LastActiveFileTracker> = mapOf(null to LastActiveFileTracker())
 
     /** Resolves the split pane behind a header (editor + header component); `null` = unknown. */
@@ -290,6 +295,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     fun refreshNow() {
         if (project.isDisposed) return
         pruneStaleHeaders()
+        pruneDeadPaneTrackers()
         val policy = FolderTabsSettings.getInstance().labelPolicy(project.name)
         val groupOrder = GroupOrderState.getInstance(project).savedUrls
         val fileOrder = FileOrderState.getInstance(project).saved
@@ -362,6 +368,18 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
         requestRefresh()
     }
 
+    /**
+     * Drops the last-active trackers of split panes the IDE no longer lists (their window was
+     * closed); the `null` project-wide fallback always stays. A pane that comes back under the
+     * same identity cannot exist (a new split is a new window), so nothing is lost, and a pane
+     * mistakenly listed as gone only falls back to the project-wide tracker.
+     */
+    private fun pruneDeadPaneTrackers() {
+        val dead = lastActiveByPane.keys.filter { it != null && filesOfPane(it) == null }
+        if (dead.isEmpty()) return
+        lastActiveByPane = lastActiveByPane - dead.toSet()
+    }
+
     /** Drops headers whose editor the platform no longer lists (safety net for missed disposals). */
     private fun pruneStaleHeaders() {
         val live = editorManager().allEditors.toSet()
@@ -398,6 +416,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     /** Test hook: what the header's `addNotify` triggers. */
     internal fun headerShownForTest(editor: FileEditor) = onHeaderShown(editor)
+
+    /** Test hook: the panes that currently hold a last-active tracker (`null` = project-wide fallback). */
+    internal fun trackedPanesForTest(): Set<Any?> = lastActiveByPane.keys
 
     /** Test hook: the header attached to [editor]. */
     internal fun panelForTest(editor: FileEditor): GroupedTabsPanel = registry.panelOf(editor)!!
