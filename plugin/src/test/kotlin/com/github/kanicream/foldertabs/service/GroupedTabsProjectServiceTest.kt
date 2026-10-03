@@ -152,4 +152,21 @@ class GroupedTabsProjectServiceTest : FolderTabsPlatformTestCase() {
         flush()
         assertEquals(c, editors.selectedFiles.first())
     }
+
+    fun testTrackerOfAClosedPaneIsDroppedOnRefresh() {
+        usePrefixPanes()
+        val l = open("users/l_a.go")
+        val r = open("users/r_x.go")
+        listOf(l, r).forEach { service.headerShownForTest(editorOf(it)) }
+        service.onSelectionChanged(l, editorOf(l))
+        service.onSelectionChanged(r, editorOf(r))
+        assertTrue("R" in service.paneTrackerKeysForTest())
+        // The IDE no longer lists pane R: its split was closed. Keeping the tracker would
+        // retain the disposed window for the rest of the project.
+        service.paneFilesForTest = { pane -> if (pane == "R") null else editors.openFiles.toList() }
+        flush()
+        assertFalse("a closed pane's tracker must not be retained", "R" in service.paneTrackerKeysForTest())
+        assertTrue("live panes keep their tracker", "L" in service.paneTrackerKeysForTest())
+        assertTrue("the project-wide fallback always stays", null in service.paneTrackerKeysForTest())
+    }
 }

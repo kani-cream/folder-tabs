@@ -290,6 +290,7 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
     fun refreshNow() {
         if (project.isDisposed) return
         pruneStaleHeaders()
+        pruneDeadPaneTrackers()
         val policy = FolderTabsSettings.getInstance().labelPolicy(project.name)
         val groupOrder = GroupOrderState.getInstance(project).savedUrls
         val fileOrder = FileOrderState.getInstance(project).saved
@@ -306,6 +307,17 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
             runCatching { panel.render(paneModels.modelFor(registry.paneOf(editor))) }
                 .onFailure { log.warn("Folder Tabs: header render failed for ${editor.file}", it) }
         }
+    }
+
+    /**
+     * Drops the last-active trackers of panes the IDE no longer lists: their split was closed, and
+     * keeping the key would retain the disposed window (and its component tree) for the rest of the
+     * project. Same safety-net pattern as [pruneStaleHeaders]; the `null` project-wide fallback
+     * tracker always stays, and a pruned pane simply re-learns its history on the next selection.
+     */
+    private fun pruneDeadPaneTrackers() {
+        val dead = lastActiveByPane.keys.filter { it != null && filesOfPane(it) == null }
+        if (dead.isNotEmpty()) lastActiveByPane = lastActiveByPane - dead.toSet()
     }
 
     /** Fail-safe (design section 23): a listing failure falls back to the project-wide model. */
@@ -401,6 +413,9 @@ class GroupedTabsProjectService(private val project: Project) : Disposable, Fold
 
     /** Test hook: the header attached to [editor]. */
     internal fun panelForTest(editor: FileEditor): GroupedTabsPanel = registry.panelOf(editor)!!
+
+    /** Test hook: the panes that currently hold a last-active tracker (`null` = project-wide). */
+    internal fun paneTrackerKeysForTest(): Set<Any?> = lastActiveByPane.keys
 
     companion object {
         fun getInstance(project: Project): GroupedTabsProjectService =
