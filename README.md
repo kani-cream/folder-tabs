@@ -30,7 +30,7 @@ Folder Tabs works entirely inside your IDE.
 - **No network requests**
 - **No accounts, login, or cloud services**
 - **No external runtime dependencies**: the plugin depends only on the
-  IntelliJ Platform (`com.intellij.modules.platform`)
+  IntelliJ Platform (`com.intellij.modules.platform`, `com.intellij.modules.lang`)
 - **No modification of your source files**: tab management only reads which
   files are open and where they live
 
@@ -85,9 +85,9 @@ Install from the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33
 
 ## Requirements
 
-IntelliJ IDEA 2026.2.x (plugin builds `262.*`). The plugin depends only on
-`com.intellij.modules.platform`, so other JetBrains IDEs on the 2026.2 platform should
-work, but only IntelliJ IDEA is verified. Newer platform versions are enabled after the
+IntelliJ IDEA 2026.2.x (plugin builds `262.*`). The plugin depends only on the platform
+modules `com.intellij.modules.platform` and `com.intellij.modules.lang`, so other JetBrains
+IDEs on the 2026.2 platform should work, but only IntelliJ IDEA is verified. Newer platform versions are enabled after the
 Plugin Verifier and a manual check pass.
 
 ## Settings

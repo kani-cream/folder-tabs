@@ -646,7 +646,7 @@ VirtualFile取得
     ↓
 （Headerのpaneにfocusが無ければ先にfocusを移す。13参照）
     ↓
-FileEditorManager.openFile(file, true)
+EditorHelper.openInEditor(psiFile, false, true)（27.2）
     ↓
 IDE標準Editorをfocus
     ↓
@@ -910,7 +910,7 @@ pane Model（同じpaneのHeaderは同じModelを共有: PaneModelCache）
 
 Group/File Tabをクリックした場合は、ユーザーが操作したHeader側のEditor領域へファイルを開く。
 
-Stable Public APIだけでpaneを明示指定できないので、対象Header側へfocusを移してから標準 `openFile()` を呼び、以降のpane選択はIDE標準挙動へ委ねる。
+Stable Public APIだけでpaneを明示指定できないので、対象Header側へfocusを移してから標準のopen（27.2）を呼び、以降のpane選択はIDE標準挙動へ委ねる。
 
 #### 実装（v1.3、Issue #29）
 
@@ -919,8 +919,8 @@ Stable Public APIだけでpaneを明示指定できないので、対象Header�
 そのため `EditorPaneOpener` が次の順で開く:
 
 1. Headerは `FolderTabsNavigator.openFile(file, pane)` / `openGroup(group, pane)` に自分のEditor component（`FileEditor.preferredFocusedComponent`）を渡す
-2. そのpaneが既にfocusを持っていれば（単一pane・同じpane内の操作）即座に `openFile()` を呼ぶ。従来と同じ
-3. 持っていなければ `IdeFocusManager.requestFocus(pane, true)` でfocusを移し、`invokeLater` で次のEDTターンに `openFile()` を呼ぶ（focus-gainedイベントの処理後）。その時点でfileが無効・projectがdisposedなら何もしない
+2. そのpaneが既にfocusを持っていれば（単一pane・同じpane内の操作）即座に開く。従来と同じ
+3. 持っていなければ `IdeFocusManager.requestFocus(pane, true)` でfocusを移し、`invokeLater` で次のEDTターンに開く（focus-gainedイベントの処理後）。その時点でfileが無効・projectがdisposedなら何もしない
 4. paneが `null` のとき（Header以外からの呼び出し）はIDE標準挙動
 
 Split制御のために `FileEditorManagerEx` / `EditorWindow` は使用しない。
@@ -929,7 +929,7 @@ Stable Public APIだけで現在splitへの確実なopenが保証できないケ
 
 #### テスト
 
-軽量テストフィクスチャは分割ウィンドウを作れないため、pane解決は差し替え可能（`paneResolverForTest`）にして `GroupedTabsProjectServiceTest` で検証し、実際の分割はサンドボックスで手動確認する。
+軽量テストフィクスチャは分割ウィンドウを作れないため、pane解決は差し替え可能（`paneResolverForTest`）にして `GroupedTabsProjectServiceTest` で検証する。実物の `FileEditorManagerImpl` が要る部分（paneを指定しないopenの開き先）は `FileEditorManagerTestCase` ベースの `EditorPaneOpenerRealManagerTest` で検証し、focus移動を含むクリック操作はサンドボックスで手動確認する。
 
 ### 13.1 v0.1着手時のSplit / Tabless PoC
 
@@ -938,7 +938,7 @@ Stable Public APIだけで現在splitへの確実なopenが保証できないケ
 1. 通常EditorへHeaderを安全に追加・削除できる
 2. `Tab placement: None` でも `getOpenFiles()` が期待する集合を返す
 3. Split左右それぞれでHeaderが正常に存在する
-4. Header側を操作して標準 `openFile()` を呼んだ際のpane挙動を確認できる
+4. Header側を操作して標準のopenを呼んだ際のpane挙動を確認できる
 5. file open / close / selection eventがTabless + Splitでも欠落しない
 
 この検証は新しいリリースフェーズを増やすものではなく、v0.1 Coreの最初のgateとする。
@@ -1272,7 +1272,11 @@ Kover（`org.jetbrains.kotlinx.kover`、plugin モジュール、計装対象は
 初期実装で中心となる候補は次の通り。**実装時点の対象SDKでStable Publicであることを再確認したものだけを採用する。**
 
 ```text
-com.intellij.openapi.fileEditor.FileEditorManager
+com.intellij.openapi.fileEditor.FileEditorManager（open系は使わない。27.2）
+com.intellij.ide.util.EditorHelper（openInEditor(PsiElement, boolean, boolean)）
+com.intellij.psi.PsiManager（findFile）
+com.intellij.openapi.application.runReadActionBlocking
+com.intellij.openapi.fileEditor.OpenFileDescriptor（2引数constructor / setUseCurrentWindow / navigateInEditor(Project, boolean)。PSIが無いファイルの退避のみ）
 com.intellij.openapi.fileEditor.FileEditorManagerListener
 com.intellij.openapi.fileEditor.FileDocumentManager
 com.intellij.openapi.fileEditor.FileEditor
@@ -1296,7 +1300,7 @@ com.intellij.openapi.fileEditor.impl.EditorWindow（getFileList と同一性比�
 ```text
 FileEditorManager.getInstance(project)
 FileEditorManager.getOpenFiles()
-FileEditorManager.openFile(...)
+EditorHelper.openInEditor(psiFile, false, true)
 FileEditorManager.addTopComponent(...)
 FileEditorManager.removeTopComponent(...)
 FileEditorManagerListener.FILE_EDITOR_MANAGER
@@ -1322,6 +1326,33 @@ EditorWindow.getFileList()
 特に `FileEditorManagerListener` の旧 `fileOpenedSync(...)` overloadはDeprecatedであるため使用しない。同期open通知が必要になった場合は、その時点でJetBrainsが案内しているStable Publicな代替APIを採用する。
 
 Tabs UIも `JBEditorTabs` のconstructorを直接選択せず、Stable Publicな `JBTabsFactory.createEditorTabs(...)` を優先する。これによりDeprecated / ScheduledForRemoval / Internal constructorへの誤依存を避ける。
+
+#### ファイルを開くAPI（2026.3、Issue #42）
+
+2026.3で `FileEditorManager` の同期open系（`openFile` / `openFileEditor` / `openEditor` / `openTextEditor`）はすべて `@Deprecated`（"Use non-blocking variant"）になり、代替の `openFile(file, FileEditorOpenRequest)` 等は `@ApiStatus.Experimental` で、2026.2には存在しない。どちらも2.1で禁止されるため、両バージョンで注釈の無い `EditorHelper` を使う。
+
+```text
+PsiManager.getInstance(project).findFile(file)   // runReadActionBlocking の中で
+EditorHelper.openInEditor(psiFile, false, true)
+```
+
+`PsiFile` を渡すとoffsetは-1になりキャレットを動かさず、内部は `FileEditorManager.openEditor` へ直接進む。`EditorHelper` は `com.intellij.modules.lang` にあるので `plugin.xml` で依存を宣言する。
+
+採用しなかった候補:
+
+- `OpenFileDescriptor.navigate` / `navigateInEditor`: `FileNavigatorImpl` を通るため、`openFile` に無い副作用がある。(1) `navigateInAnyFileEditor` がキャレット行の折りたたみを毎回解除する（実機相当のテストで再現）、(2) デコンパイラ対象のファイルでモーダル進捗に入る、(3) フォーカス元が `NAVIGATE_IN_EDITOR` を提供するとそちらで消費され、タブが切り替わらないことがある。`navigate` はさらに `INativeFileType` を関連付けアプリで開く
+- `OpenFileAction.openFile`: 内部で `navigate` と同じ経路を通る
+
+`EditorHelper` が受け取れないファイル（PSIが無い、またはPSIの `getVirtualFile()` がnull）だけは `OpenFileDescriptor(project, file).setUseCurrentWindow(true).navigateInEditor(project, true)` へ退避する。ファイルを開けないより、上記の副作用を許容する。
+
+`openFile(file, true)` と異なる点（許容する）:
+
+- `EditorHelper` は `useCurrentWindow` を指定できず `reuseOpen = true` になる。現在のpaneにあるファイルは現在のpaneに開くので通常は差が出ない。`Tab placement: None` で別paneにしか無いファイルを開くと、`openFile` は現在のpaneへ複製するが、こちらはそのpaneへ移動する。Headerは自paneのファイルしか出さないため、起きるのはproject全体のModelへ退避したHeaderだけ
+- 開いた後に `NavigatableFileEditor` へdescriptorを渡す。`canNavigateTo` が真を返すEditorでは表示中のサブタブが変わり得る（`TextEditorImpl` はoffset-1を拒否するので通常のテキストは対象外）
+
+`EditorHelper.openInEditor` は注釈こそ無いが、内部では2026.3でDeprecatedになった同期の `FileEditorManager.openEditor` を呼ぶ薄いラッパーである。非同期APIが `@ApiStatus.Experimental` を外れるか `EditorHelper` がDeprecatedになったら（週次のVerifierで検出できる）、そちらへ移行する。
+
+`EditorPaneOpenerRealManagerTest` が実物の `FileEditorManagerImpl` で次を固定する（2026.2 / 2026.3）: 折りたたみとキャレットを変えない、両paneで開いているファイルは現在のpaneに開く、別paneにだけあるファイルは複製せずそのpaneを再利用する（`Tab placement: None` を含む）、PSIの無いファイルも開ける。
 
 ### 27.3 Annotation Audit
 
