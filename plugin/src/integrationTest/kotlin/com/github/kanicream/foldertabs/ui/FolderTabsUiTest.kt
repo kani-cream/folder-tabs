@@ -25,7 +25,9 @@ import org.junit.jupiter.api.Test
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
+import kotlin.io.path.name
 import kotlin.io.path.readLines
+import kotlin.io.path.walk
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -140,8 +142,10 @@ class FolderTabsUiTest {
     }
 
     private fun assertNoPluginErrors(context: IDETestContext) {
-        val errors = context.paths.testHome.resolve("log/idea.log").readLines()
-            .filter { " ERROR " in it && "foldertabs" in it }
+        // 2026.3 keeps the log in a per-run directory below the test home.
+        val logs = context.paths.testHome.walk().filter { it.name == "idea.log" }.toList()
+        assertTrue(logs.isNotEmpty()) { "No idea.log below ${context.paths.testHome}" }
+        val errors = logs.flatMap { it.readLines() }.filter { " ERROR " in it && "foldertabs" in it }
         assertTrue(errors.isEmpty()) { "Plugin errors in idea.log: $errors" }
     }
 
