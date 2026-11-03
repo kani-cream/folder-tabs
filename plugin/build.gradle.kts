@@ -153,6 +153,12 @@ intellijPlatform {
         name = "Folder Tabs"
         version = project.version.toString()
         changeNotes = """
+            <b>1.5.0</b>
+            <ul>
+              <li>Supports IntelliJ IDEA 2026.3. IntelliJ IDEA 2026.2 stays supported with the same plugin version.</li>
+              <li>Header tabs now open files without the editor APIs deprecated in 2026.3. Behavior stays the same:
+                  the file opens in the pane whose header you clicked, and folds and the caret are left alone.</li>
+            </ul>
             <b>1.4.0</b>
             <ul>
               <li>Keyboard navigation between groups: new <i>Next Folder Group</i> / <i>Previous Folder Group</i>
