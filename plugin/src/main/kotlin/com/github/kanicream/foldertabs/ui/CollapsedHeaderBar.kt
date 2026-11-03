@@ -29,6 +29,7 @@ class CollapsedHeaderBar(private val onExpand: () -> Unit) {
     }
 
     val component: JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
+        name = COMPONENT_NAME
         border = JBUI.Borders.empty(VERTICAL_PADDING, HORIZONTAL_PADDING)
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         toolTipText = FolderTabsBundle.message("header.expand")
@@ -59,6 +60,8 @@ class CollapsedHeaderBar(private val onExpand: () -> Unit) {
     internal fun labelForTest(): JComponent = label
 
     companion object {
+        /** Lets UI tests find the bar, whose class is anonymous. */
+        const val COMPONENT_NAME = "FolderTabsCollapsedBar"
         const val SEPARATOR: String = " › "
         private const val VERTICAL_PADDING = 2
         private const val HORIZONTAL_PADDING = 8

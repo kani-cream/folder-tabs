@@ -150,7 +150,8 @@ CIからrepositoryへcommit / tag / releaseを書き込む権限は与えない�
 .github/workflows/
 ├ quality.yml        再利用Workflow（jobの本体）
 ├ ci.yml             trigger: PR / main / 手動
-└ compatibility.yml  trigger: 週次 / 手動
+├ compatibility.yml  trigger: 週次 / 手動
+└ ui-test.yml        trigger: 手動 / UIテストを変更したPR
 ```
 
 jobの定義を `quality.yml` に集約するので、PRのCIが週次チェックと同じ内容を検証する。
