@@ -85,9 +85,9 @@ Install from the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33
 
 ## Requirements
 
-IntelliJ IDEA 2026.2.x (plugin builds `262.*`). The plugin depends only on the platform
-modules `com.intellij.modules.platform` and `com.intellij.modules.lang`, so other JetBrains
-IDEs on the 2026.2 platform should work, but only IntelliJ IDEA is verified. Newer platform versions are enabled after the
+IntelliJ IDEA 2026.2.x and 2026.3.x (plugin builds `262.*` and `263.*`). The plugin depends
+only on the platform modules `com.intellij.modules.platform` and `com.intellij.modules.lang`,
+so other JetBrains IDEs on those platforms should work, but only IntelliJ IDEA is verified. Newer platform versions are enabled after the
 Plugin Verifier and a manual check pass.
 
 ## Settings
@@ -117,7 +117,8 @@ as usual.
 ## Development
 
 ```
-./gradlew build          # compile + tests
+./gradlew build          # compile + tests on the 2026.2 baseline
+./gradlew :plugin:check -PideaVersion=263.7307.112   # tests on 2026.3
 ./gradlew runIde         # sandbox IDE with the plugin
 ./gradlew :plugin:verifyPlugin   # Plugin Verifier (API stability gate)
 ./gradlew :plugin:koverHtmlReport   # coverage report (plugin/build/reports/kover/html)

@@ -1,0 +1,114 @@
+name: Quality
+
+# The jobs ci.yml and compatibility.yml share (plan/github-actions-ci-design.md section 8).
+on:
+  workflow_call:
+    inputs:
+      upload-candidate:
+        description: Upload the plugin ZIP as a workflow artifact.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.ide }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ide: '2026.2'
+            gradle-args: ''
+          - ide: '2026.3'
+            gradle-args: -PideaVersion=263.7307.112
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-excludes: |
+            caches/**/transforms
+
+      - name: Test
+        run: ./gradlew :plugin:check ${{ matrix.gradle-args }} --stacktrace
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.ide }}
+          path: |
+            **/build/reports/tests/**
+            **/build/test-results/**
+            plugin/build/reports/kover/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-excludes: |
+            caches/**/transforms
+
+      - name: Verify project configuration
+        run: ./gradlew verifyPluginProjectConfiguration --stacktrace
+
+      - name: Build plugin distribution
+        run: ./gradlew buildPlugin --stacktrace
+
+      - name: Verify plugin structure
+        run: ./gradlew verifyPluginStructure --stacktrace
+
+      - name: Assert distribution exists
+        run: test -n "$(find plugin/build/distributions -name '*.zip' -print -quit)"
+
+      - name: Plugin Verifier
+        run: ./gradlew :plugin:verifyPlugin --stacktrace
+
+      - name: Report disk usage
+        if: always()
+        run: df -h /
+
+      - name: Upload verifier reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-verifier-reports
+          path: plugin/build/reports/pluginVerifier/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload candidate distribution
+        if: inputs.upload-candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: folder-tabs-candidate
+          path: plugin/build/distributions/*.zip
+          if-no-files-found: error
+          retention-days: 7
