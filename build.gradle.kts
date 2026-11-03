@@ -8,5 +8,5 @@ plugins {
 allprojects {
     group = "com.github.kanicream.foldertabs"
     // Bumped in each release PR (plan/grouped-editor-tabs-design.md section 25 describes the release flow).
-    version = "1.4.0"
+    version = "1.5.0"
 }
