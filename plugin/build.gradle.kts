@@ -49,7 +49,13 @@ dependencies {
         // 2026.2: a plugin built against 263 references FileEditorManager.Companion and fails on 262.
         intellijIdea(ideaVersion)
         testFramework(TestFrameworkType.Platform)
-        testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
+        // The Driver has to match the IDE it drives, while the ZIP under test stays on the baseline.
+        val uiFrameworkVersion = providers.gradleProperty("uiFrameworkVersion").orNull
+        if (uiFrameworkVersion == null) {
+            testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
+        } else {
+            testFramework(TestFrameworkType.Starter, uiFrameworkVersion, "integrationTestImplementation")
+        }
     }
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.opentest4j:opentest4j:1.3.0")
@@ -69,7 +75,8 @@ configurations.named("integrationTestRuntimeClasspath") {
     )
 }
 
-// `./gradlew :plugin:uiTest [-PuiIdeVersion=<release>]` installs the built ZIP into that IDE.
+// `./gradlew :plugin:uiTest` installs the built ZIP into an IDE. For another IDE than the baseline,
+// add -PuiIdeVersion=<release or rc> -PuiFrameworkVersion=<that IDE's build number>.
 val uiTest by intellijPlatformTesting.testIdeUi.registering {
     task {
         val integrationTestSourceSet = sourceSets.getByName("integrationTest")

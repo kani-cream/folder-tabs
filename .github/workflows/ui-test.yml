@@ -25,7 +25,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ide: ['2026.2.4', 'rc']
+        include:
+          - ide: '2026.2.4'
+            gradle-args: -PuiIdeVersion=2026.2.4
+          - ide: '2026.3 RC'
+            gradle-args: -PuiIdeVersion=rc -PuiFrameworkVersion=263.7307.112
 
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +58,7 @@ jobs:
       - name: UI tests
         env:
           DISPLAY: ':99'
-        run: ./gradlew :plugin:uiTest -PuiIdeVersion=${{ matrix.ide }} --stacktrace
+        run: ./gradlew :plugin:uiTest ${{ matrix.gradle-args }} --stacktrace
 
       - name: Upload screenshots and logs
         if: always()
