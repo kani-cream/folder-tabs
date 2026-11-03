@@ -122,6 +122,7 @@ as usual.
 ./gradlew runIde         # sandbox IDE with the plugin
 ./gradlew :plugin:verifyPlugin   # Plugin Verifier (API stability gate)
 ./gradlew :plugin:koverHtmlReport   # coverage report (plugin/build/reports/kover/html)
+./gradlew :plugin:uiTest   # UI test in a real IDE; screenshots in plugin/build/reports/ui-screenshots
 tools/api_audit.py <ide-dir> <fqcn>...   # list @Deprecated / @ApiStatus members
 ```
 

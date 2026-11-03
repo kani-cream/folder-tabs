@@ -1232,6 +1232,13 @@ Serviceとヘッダーは `BasePlatformTestCase`（共通フィクスチャ `Fol
 
 PRごとにサンドボックス（`runIde`）で利用者が確認し、`idea.log` にプラグイン由来の例外が無いことを確認してからマージする。確認項目はPRのTest planに書く。定番: Light / Dark、UI scale、Split、Tab placement: None、Scratch / project外file。
 
+`src/integrationTest` のUIテスト（Starter + Driver、`./gradlew :plugin:uiTest`）は、ビルドしたZIPを実物のIDEへ入れてクリックし、各段階のスクリーンショットと `idea.log` を残す。Headerのクリックがpaneをまたいでも正しく動くこと（13）など、ヘッドレスのテストでは通らない経路を確認する。
+
+- 実行はGitHub Actionsの `UI Test`（手動、またはUIテストを変更したPR）。LinuxのXvfb上で2026.2と2026.3を実行する。Quality Gateには含めない
+- macOSではIDEの起動とスクリーンショットは動くが、Robotのクリックが届かない（`Click was unsuccessful`）
+- ZIPは常に基準の2026.2でビルドする。Driverだけ対象IDEに合わせる（`-PuiFrameworkVersion`）ので、2026.3の実行でもリリースするZIPそのものを検証できる
+- Drag & Drop、Tab placement: None、Light / Dark、UI scale は対象外で、サンドボックスで確認する
+
 ### 24.4 Compatibility / API Stability Gate
 
 IntelliJ Plugin VerifierをCIで実行し、Compatibleであることだけでは合格としない。Deprecated / Scheduled-for-removal / Experimental / Internal API usage、OverrideOnly / NonExtendable違反、Missing dependencies、Invalid plugin problems はすべて0を条件とする（27 / 28）。Marketplaceは内部API使用を"Problems"として表示し、赤い警告付きの版は審査が止まる（v1.2.0の経験）。
