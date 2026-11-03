@@ -8,12 +8,28 @@ plugins {
     id("org.jetbrains.kotlinx.kover")
 }
 
+// UI tests that drive the real IDE (src/integrationTest). Run on demand, never part of `check`.
+sourceSets {
+    create("integrationTest") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
+}
+
+val integrationTestImplementation by configurations.getting {
+    extendsFrom(configurations.testImplementation.get())
+}
+
 repositories {
     mavenCentral()
     intellijPlatform {
         defaultRepositories()
         // The test framework of the 2026.3 RC is published here only; drop this once CI targets the release.
         snapshots()
+    }
+    // Starter reports through TeamCity's service messages, which are not on Maven Central.
+    maven("https://cache-redirector.jetbrains.com/intellij-dependencies") {
+        content { includeGroup("org.jetbrains.teamcity") }
     }
 }
 
@@ -33,9 +49,39 @@ dependencies {
         // 2026.2: a plugin built against 263 references FileEditorManager.Companion and fails on 262.
         intellijIdea(ideaVersion)
         testFramework(TestFrameworkType.Platform)
+        testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
     }
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.opentest4j:opentest4j:1.3.0")
+    integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+    integrationTestImplementation("org.kodein.di:kodein-di-jvm:7.20.2")
+    integrationTestImplementation("org.jetbrains.teamcity:serviceMessages:2024.07")
+    integrationTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
+    "integrationTestRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+    // kotlin.stdlib.default.dependency is off: the tests run outside the IDE and need their own stdlib.
+    integrationTestImplementation(kotlin("stdlib"))
+}
+
+configurations.named("integrationTestRuntimeClasspath") {
+    resolutionStrategy.force(
+        "org.jetbrains.kotlin:kotlin-reflect:${kotlin.coreLibrariesVersion}",
+        "org.jetbrains.kotlin:kotlin-stdlib:${kotlin.coreLibrariesVersion}",
+    )
+}
+
+// `./gradlew :plugin:uiTest [-PuiIdeVersion=<release>]` installs the built ZIP into that IDE.
+val uiTest by intellijPlatformTesting.testIdeUi.registering {
+    task {
+        val integrationTestSourceSet = sourceSets.getByName("integrationTest")
+        testClassesDirs = integrationTestSourceSet.output.classesDirs
+        classpath = integrationTestSourceSet.runtimeClasspath
+        useJUnitPlatform()
+        dependsOn(tasks.buildPlugin)
+        systemProperty("path.to.build.plugin", tasks.buildPlugin.get().archiveFile.get().asFile.absolutePath)
+        systemProperty("ui.ide.version", providers.gradleProperty("uiIdeVersion").getOrElse(baselineIdeaVersion))
+        systemProperty("ui.sample.project", layout.projectDirectory.dir("src/integrationTest/resources/sample-project").asFile.absolutePath)
+        systemProperty("ui.screenshots.dir", layout.buildDirectory.dir("reports/ui-screenshots").get().asFile.absolutePath)
+    }
 }
 
 tasks.test {
@@ -58,6 +104,7 @@ kover {
             // headless IDE loads in the test JVM (about +50% test time, and a log of frame-computation
             // errors for platform classes) for a report that is filtered to this package anyway.
             includedClasses.add("com.github.kanicream.foldertabs.*")
+            disabledForTestTasks.add("uiTest")
         }
     }
     reports {

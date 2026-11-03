@@ -80,6 +80,7 @@ class GroupedTabsPanel(
             onShown()
         }
     }.apply {
+        name = HEADER_COMPONENT_NAME
         add(strips, BorderLayout.CENTER)
     }
 
@@ -217,6 +218,8 @@ class GroupedTabsPanel(
     }
 
     companion object {
+        /** Lets UI tests find the header, whose class is anonymous. */
+        const val HEADER_COMPONENT_NAME = "FolderTabsHeader"
         /** [KeyboardFocusManager] property that changes whenever keyboard focus settles on a component. */
         const val FOCUS_OWNER_PROPERTY: String = "permanentFocusOwner"
 
