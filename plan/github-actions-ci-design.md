@@ -144,13 +144,16 @@ CIからrepositoryへcommit / tag / releaseを書き込む権限は与えない�
 
 ## 5. Workflow構成
 
-次の2 Workflowを基本とする。
+次の3 Workflowで構成する。
 
 ```text
 .github/workflows/
-├ ci.yml
-└ compatibility.yml
+├ quality.yml        再利用Workflow（jobの本体）
+├ ci.yml             trigger: PR / main / 手動
+└ compatibility.yml  trigger: 週次 / 手動
 ```
+
+jobの定義を `quality.yml` に集約するので、PRのCIが週次チェックと同じ内容を検証する。
 
 ### `ci.yml`
 
@@ -220,44 +223,34 @@ Plugin Verifierは重いため、古いcommitの検証を最後まで継続す�
 
 ---
 
-## 8. ci.yml - Job構成
+## 8. Job構成
 
-初期段階では複数runnerへ分割せず、**1つのQuality Gate job内で順番に実行する。**
+検証は3つのjobへ分けて **並列に実行する**（Issue #42）。
 
 ```text
-quality-gate
-├ Environment setup
-├ Project configuration verification
-├ Build & tests
-├ Plugin distribution build
-├ Plugin structure verification
-├ Plugin Verifier
-└ Diagnostic artifacts
+Quality（quality.yml）
+├ Test (2026.2)   :plugin:check（基準のIDE）
+├ Test (2026.3)   :plugin:check -PideaVersion=<263のbuild>
+└ Verify          project configuration / buildPlugin / structure / Plugin Verifier
+
+Quality Gate（ci.yml）  上の全jobの成功を要求する集約job
 ```
 
 理由:
 
-- IntelliJ distributionの再downloadを避ける
-- Gradle cache / extracted dependenciesを同一runnerで再利用する
-- 小規模プラグインなのでjob分割による並列化メリットが小さい
-- 失敗箇所をActions画面上のstep単位で識別できる
+- 対応IDEが2系統になり、直列だとtestとVerifierのIDE取得が積み重なる
+- 2026.3のtestが失敗しても2026.2とVerifierの結果を得られる（`fail-fast: false`）
+- 失敗箇所をjob / step単位で識別できる
 
-将来test時間が大きくなった場合のみjob分割を検討する。
+CI上の合否はjob名 `Quality Gate` で見る。
 
 ---
 
-## 9. Runner disk対策
+## 9. Runner disk
 
-既存3プラグインと同様、IntelliJ distribution / Plugin Verifier IDE / Gradle transformsによりGitHub-hosted runnerのdiskを大きく消費する。
+不要toolchainの削除は行わない。GitHub-hosted runnerは解放後に113GB空いていた一方で、削除だけで147秒（全体の26%）かかり、docker imageの削除で増えるのは1GB未満だった（2026-11計測）。
 
-CI開始時に不要toolchainを削除する。
-
-```bash
-sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-  /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
-sudo docker image prune --all --force
-df -h /
-```
+`Verify` jobの `df -h /` で、IDE 2本を扱った後の空きを確認できる。disk不足が出たら、まずこの出力を見る。
 
 Gradle cacheではre-derivableなtransformsを保存対象から外す。
 
@@ -727,176 +720,15 @@ UI test導入は、手動で繰り返し発生する回帰が見つかった時�
 
 ---
 
-## 28. 実装時のci.yml概形
+## 28. ci.yml
 
-```yaml
-name: CI
-
-on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'plan/**'
-      - 'docs/**'
-      - '.gitignore'
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - '**.md'
-      - 'plan/**'
-      - 'docs/**'
-      - '.gitignore'
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  quality-gate:
-    name: Quality Gate
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          df -h /
-
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 25
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-home-cache-excludes: |
-            caches/**/transforms
-
-      - name: Verify project configuration
-        run: ./gradlew verifyPluginProjectConfiguration --no-daemon --stacktrace
-
-      - name: Build and test
-        run: ./gradlew build --no-daemon --stacktrace
-
-      - name: Build plugin distribution
-        run: ./gradlew buildPlugin --no-daemon --stacktrace
-
-      - name: Verify plugin structure
-        run: ./gradlew verifyPluginStructure --no-daemon --stacktrace
-
-      - name: Assert distribution exists
-        run: test -n "$(find plugin/build/distributions -name '*.zip' -print -quit)"
-
-      - name: Plugin Verifier
-        run: ./gradlew :plugin:verifyPlugin --no-daemon --stacktrace
-
-      - name: Upload test reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-reports
-          path: |
-            **/build/reports/tests/**
-            **/build/test-results/**
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload verifier reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: plugin-verifier-reports
-          path: plugin/build/reports/pluginVerifier/**
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Upload candidate distribution
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: folder-tabs-candidate
-          path: plugin/build/distributions/*.zip
-          if-no-files-found: error
-          retention-days: 7
-```
-
-これは設計上の概形であり、実装時は実際のmodule構成・Gradle task dependencyを確認して不要な重複taskを整理する。
+実体は `.github/workflows/ci.yml` と `quality.yml`。
 
 ---
 
-## 29. compatibility.yml概形
+## 29. compatibility.yml
 
-```yaml
-name: Compatibility
-
-on:
-  schedule:
-    - cron: '0 18 * * 0'
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  verify:
-    name: Scheduled Plugin Verification
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          df -h /
-
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 25
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-home-cache-excludes: |
-            caches/**/transforms
-
-      - name: Build and test
-        run: ./gradlew build --no-daemon --stacktrace
-
-      - name: Plugin Verifier
-        run: ./gradlew :plugin:verifyPlugin --no-daemon --stacktrace
-
-      - name: Upload verifier reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: scheduled-plugin-verifier-reports
-          path: plugin/build/reports/pluginVerifier/**
-          if-no-files-found: ignore
-          retention-days: 14
-```
+実体は `.github/workflows/compatibility.yml`。jobは `quality.yml` を共用する。
 
 ---
 
@@ -974,28 +806,13 @@ Folder TabsのGitHub Actionsは、**自動リリース基盤ではなく、main�
 ```text
 Pull Request / main
         │
-        ▼
-Project Configuration
+        ├── Test (2026.2): 全test + カバレッジ80%以上
+        ├── Test (2026.3): 全test
+        └── Verify: Project Configuration → Plugin ZIP → Plugin Structure → Plugin Verifier
+                          （Compatibility Problems / Deprecated / Experimental / Internal = 0）
         │
         ▼
-Build + Test
-        │
-        ▼
-Build Plugin ZIP
-        │
-        ▼
-Plugin Structure
-        │
-        ▼
-Plugin Verifier
-        │
-        ├── Deprecated = 0
-        ├── Experimental = 0
-        ├── Internal = 0
-        └── Compatibility Problems = 0
-        │
-        ▼
-      GREEN
+Quality Gate: GREEN
 ```
 
 別系統で週次Compatibility Checkを実行し、JetBrains側のIDE / API変更をコード変更前に検出する。

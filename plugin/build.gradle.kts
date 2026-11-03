@@ -12,8 +12,14 @@ repositories {
     mavenCentral()
     intellijPlatform {
         defaultRepositories()
+        // The test framework of the 2026.3 RC is published here only; drop this once CI targets the release.
+        snapshots()
     }
 }
+
+// The baseline every release is built against. CI also tests a newer line with -PideaVersion=<version>.
+val baselineIdeaVersion = "2026.2.4"
+val ideaVersion = providers.gradleProperty("ideaVersion").getOrElse(baselineIdeaVersion)
 
 kotlin {
     // IntelliJ Platform 2026.2 baseline (plan/github-actions-ci-design.md section 4.1).
@@ -23,9 +29,9 @@ kotlin {
 dependencies {
     intellijPlatform {
         // Since 2025.3 IntelliJ IDEA ships as a single unified distribution, so the
-        // unified helper is used rather than intellijIdeaCommunity(). Pinned to the
-        // current 2026.2 patch; the baseline stays 2026.2 / since-build 262.
-        intellijIdea("2026.2.4")
+        // unified helper is used rather than intellijIdeaCommunity(). The baseline stays on
+        // 2026.2: a plugin built against 263 references FileEditorManager.Companion and fails on 262.
+        intellijIdea(ideaVersion)
         testFramework(TestFrameworkType.Platform)
     }
     testImplementation("junit:junit:4.13.2")
@@ -33,9 +39,13 @@ dependencies {
 }
 
 tasks.test {
-    // The unified distribution bundles language plugins whose listeners fail to
-    // initialize in the headless test harness; load only this plugin.
-    systemProperty("idea.load.plugins.id", "com.github.kanicream.foldertabs")
+    // On 262 the unified distribution bundles language plugins whose listeners fail to initialize
+    // in the headless test harness, so load only this plugin. From 263 on that filter also drops
+    // platform modules moved into bundled plugins (com.intellij.platform.vcs) and this plugin
+    // no longer loads, so it applies to the baseline only.
+    if (ideaVersion == baselineIdeaVersion) {
+        systemProperty("idea.load.plugins.id", "com.github.kanicream.foldertabs")
+    }
     testLogging {
         showStandardStreams = true
     }
@@ -142,7 +152,7 @@ intellijPlatform {
         }
         ideaVersion {
             sinceBuild = "262"
-            untilBuild = "262.*"
+            untilBuild = "263.*"
         }
     }
 

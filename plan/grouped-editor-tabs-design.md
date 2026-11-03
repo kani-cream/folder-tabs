@@ -2,7 +2,7 @@
 
 - **文書状態**: 仕様と設計判断の記録（v1.4時点、2026-09-12更新）。リリース記録は置かない（25参照）。コード内の `design section N` コメントは本書の節番号を指すので、節番号は変えない
 - **作成日**: 2026-08-21
-- **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を初期基準とする
+- **対象**: IntelliJ Platform / IntelliJ IDEA 2026.2 系を基準とし、2026.3 系にも対応する（Issue #42）
 - **関連要望**: IJPL-186183
 - **実装方針**: **Stable Public API Only**。deprecated / experimental / scheduled-for-removal / internal API および reflection による内部実装アクセスを禁止し、Plugin Verifier で継続的に検証する。
 
@@ -1236,7 +1236,9 @@ PRごとにサンドボックス（`runIde`）で利用者が確認し、`idea.l
 
 IntelliJ Plugin VerifierをCIで実行し、Compatibleであることだけでは合格としない。Deprecated / Scheduled-for-removal / Experimental / Internal API usage、OverrideOnly / NonExtendable違反、Missing dependencies、Invalid plugin problems はすべて0を条件とする（27 / 28）。Marketplaceは内部API使用を"Problems"として表示し、赤い警告付きの版は審査が止まる（v1.2.0の経験）。
 
-対応範囲は `sinceBuild = 262` / `untilBuild = 262.*`。新しいIDEへの拡大はVerifierと実機確認の後に明示的に行い、Stable Public API Onlyを維持できることを条件とする。
+対応範囲は `sinceBuild = 262` / `untilBuild = 263.*`。新しいIDEへの拡大はVerifierと実機確認の後に明示的に行い、Stable Public API Onlyを維持できることを条件とする。`verifyPluginProjectConfiguration` は `until-build` の削除を勧めるが、この方針と2.1の例外の封じ込めのために残す。
+
+リリースは最小対応の2026.2でビルドした1つのZIPとする。263でビルドしたものは `FileEditorManager.Companion` を参照し262で動かない。テストは2026.2（基準）と2026.3（`-PideaVersion`）の両方で実行する。`idea.load.plugins.id` は262では必須（無いとUltimateの拡張の初期化で失敗）で、263では有害（`intellij.platform.vcs` 等が別プラグインへ移り、Folder Tabsがロードされない）なので基準にだけ設定する。
 
 ### 24.5 カバレッジ
 
