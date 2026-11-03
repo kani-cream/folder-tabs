@@ -27,11 +27,16 @@ repositories {
         // The test framework of the 2026.3 RC is published here only; drop this once CI targets the release.
         snapshots()
     }
-    // Starter reports through TeamCity's service messages, which are not on Maven Central.
+    // What Starter needs beyond Maven Central: TeamCity's service messages and JetBrains' coroutines.
     maven("https://cache-redirector.jetbrains.com/intellij-dependencies") {
-        content { includeGroup("org.jetbrains.teamcity") }
+        content {
+            includeGroup("org.jetbrains.teamcity")
+            includeGroup("org.jetbrains.intellij.deps.kotlinx")
+        }
     }
 }
+
+val uiFrameworkVersion: String? = providers.gradleProperty("uiFrameworkVersion").orNull
 
 // The baseline every release is built against. CI also tests a newer line with -PideaVersion=<version>.
 val baselineIdeaVersion = "2026.2.4"
@@ -50,7 +55,6 @@ dependencies {
         intellijIdea(ideaVersion)
         testFramework(TestFrameworkType.Platform)
         // The Driver has to match the IDE it drives, while the ZIP under test stays on the baseline.
-        val uiFrameworkVersion = providers.gradleProperty("uiFrameworkVersion").orNull
         if (uiFrameworkVersion == null) {
             testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
         } else {
@@ -63,6 +67,11 @@ dependencies {
     integrationTestImplementation("org.kodein.di:kodein-di-jvm:7.20.2")
     integrationTestImplementation("org.jetbrains.teamcity:serviceMessages:2024.07")
     "integrationTestRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+    // Starter needs JetBrains' coroutines build of its own IDE line, which the Gradle plugin excludes.
+    integrationTestImplementation(
+        "org.jetbrains.intellij.deps.kotlinx:kotlinx-coroutines-core-jvm:" +
+            if (uiFrameworkVersion?.startsWith("263") == true) "1.11.0-intellij-1" else "1.10.2-intellij-2",
+    )
     // kotlin.stdlib.default.dependency is off: the tests run outside the IDE and need their own stdlib.
     integrationTestImplementation(kotlin("stdlib"))
 }
