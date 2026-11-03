@@ -62,7 +62,6 @@ dependencies {
     integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
     integrationTestImplementation("org.kodein.di:kodein-di-jvm:7.20.2")
     integrationTestImplementation("org.jetbrains.teamcity:serviceMessages:2024.07")
-    integrationTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
     "integrationTestRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     // kotlin.stdlib.default.dependency is off: the tests run outside the IDE and need their own stdlib.
     integrationTestImplementation(kotlin("stdlib"))
