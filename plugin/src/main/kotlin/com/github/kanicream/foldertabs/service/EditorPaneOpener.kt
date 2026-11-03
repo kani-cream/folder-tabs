@@ -4,6 +4,7 @@ import com.intellij.ide.util.EditorHelper
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -53,19 +54,24 @@ class EditorPaneOpener(
     }
 
     companion object {
+        private val LOG = Logger.getInstance(EditorPaneOpener::class.java)
+
         /**
          * The default open, replacing `FileEditorManager.openFile(file, true)` (deprecated in
          * 2026.3, design section 27.2). `EditorHelper` goes straight to the editor manager; the
          * descriptor navigation path unfolds the caret line, so it is only the fallback for a
-         * file without PSI.
+         * file `EditorHelper` cannot take: one without PSI, or whose PSI has no virtual file.
          */
         private fun openInCurrentPane(project: Project, file: VirtualFile) {
-            val psiFile = runReadActionBlocking { PsiManager.getInstance(project).findFile(file) }
-            val opened = psiFile != null && EditorHelper.openInEditor(psiFile, false, true) != null
-            if (!opened) openRequest(project, file).navigateInEditor(project, true)
+            val psiFile = runReadActionBlocking {
+                PsiManager.getInstance(project).findFile(file)?.takeIf { it.virtualFile != null }
+            }
+            if (psiFile != null) {
+                EditorHelper.openInEditor(psiFile, false, true)
+                return
+            }
+            val opened = OpenFileDescriptor(project, file).setUseCurrentWindow(true).navigateInEditor(project, true)
+            if (!opened) LOG.warn("Could not open ${file.presentableUrl} from the Folder Tabs header")
         }
-
-        internal fun openRequest(project: Project, file: VirtualFile): OpenFileDescriptor =
-            OpenFileDescriptor(project, file).setUseCurrentWindow(true)
     }
 }

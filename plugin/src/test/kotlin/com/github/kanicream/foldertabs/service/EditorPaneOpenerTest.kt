@@ -88,10 +88,4 @@ class EditorPaneOpenerTest : BasePlatformTestCase() {
         EditorPaneOpener(project).open(a, pane = null)
         assertTrue(editors.isFileOpen(a))
     }
-
-    /** The fallback for a file without PSI asks for the current pane, as `openFile` did. */
-    fun testTheFallbackRequestAsksForTheCurrentPane() {
-        val request = EditorPaneOpener.openRequest(project, file("users/a.go"))
-        assertTrue(request.isUseCurrentWindow)
-    }
 }

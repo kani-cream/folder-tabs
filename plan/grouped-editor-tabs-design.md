@@ -1343,9 +1343,16 @@ EditorHelper.openInEditor(psiFile, false, true)
 - `OpenFileDescriptor.navigate` / `navigateInEditor`: `FileNavigatorImpl` を通るため、`openFile` に無い副作用がある。(1) `navigateInAnyFileEditor` がキャレット行の折りたたみを毎回解除する（実機相当のテストで再現）、(2) デコンパイラ対象のファイルでモーダル進捗に入る、(3) フォーカス元が `NAVIGATE_IN_EDITOR` を提供するとそちらで消費され、タブが切り替わらないことがある。`navigate` はさらに `INativeFileType` を関連付けアプリで開く
 - `OpenFileAction.openFile`: 内部で `navigate` と同じ経路を通る
 
-PSIが無いファイル（`findFile` がnull、または `openInEditor` がnull）だけは `OpenFileDescriptor(project, file).setUseCurrentWindow(true).navigateInEditor(project, true)` へ退避する。ファイルを開けないより、上記の副作用を許容する。
+`EditorHelper` が受け取れないファイル（PSIが無い、またはPSIの `getVirtualFile()` がnull）だけは `OpenFileDescriptor(project, file).setUseCurrentWindow(true).navigateInEditor(project, true)` へ退避する。ファイルを開けないより、上記の副作用を許容する。
 
-`EditorPaneOpenerRealManagerTest` が実物の `FileEditorManagerImpl` で次を固定する（2026.2 / 2026.3）: 折りたたみとキャレットを変えない、両paneで開いているファイルは現在のpaneに開く、別paneにだけあるファイルは複製せずそのpaneを再利用する。
+`openFile(file, true)` と異なる点（許容する）:
+
+- `EditorHelper` は `useCurrentWindow` を指定できず `reuseOpen = true` になる。現在のpaneにあるファイルは現在のpaneに開くので通常は差が出ない。`Tab placement: None` で別paneにしか無いファイルを開くと、`openFile` は現在のpaneへ複製するが、こちらはそのpaneへ移動する。Headerは自paneのファイルしか出さないため、起きるのはproject全体のModelへ退避したHeaderだけ
+- 開いた後に `NavigatableFileEditor` へdescriptorを渡す。`canNavigateTo` が真を返すEditorでは表示中のサブタブが変わり得る（`TextEditorImpl` はoffset-1を拒否するので通常のテキストは対象外）
+
+`EditorHelper.openInEditor` は注釈こそ無いが、内部では2026.3でDeprecatedになった同期の `FileEditorManager.openEditor` を呼ぶ薄いラッパーである。非同期APIが `@ApiStatus.Experimental` を外れるか `EditorHelper` がDeprecatedになったら（週次のVerifierで検出できる）、そちらへ移行する。
+
+`EditorPaneOpenerRealManagerTest` が実物の `FileEditorManagerImpl` で次を固定する（2026.2 / 2026.3）: 折りたたみとキャレットを変えない、両paneで開いているファイルは現在のpaneに開く、別paneにだけあるファイルは複製せずそのpaneを再利用する（`Tab placement: None` を含む）、PSIの無いファイルも開ける。
 
 ### 27.3 Annotation Audit
 
