@@ -25,7 +25,7 @@ dependencies {
         // Since 2025.3 IntelliJ IDEA ships as a single unified distribution, so the
         // unified helper is used rather than intellijIdeaCommunity(). Pinned to the
         // current 2026.2 patch; the baseline stays 2026.2 / since-build 262.
-        intellijIdea("2026.2.1")
+        intellijIdea("2026.2.4")
         testFramework(TestFrameworkType.Platform)
     }
     testImplementation("junit:junit:4.13.2")
