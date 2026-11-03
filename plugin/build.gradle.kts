@@ -91,6 +91,8 @@ val uiTest by intellijPlatformTesting.testIdeUi.registering {
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
         useJUnitPlatform()
+        // The 263 Starter puts the IDE's file system classes on the test JVM, which reach into this package.
+        jvmArgs("--add-exports=java.base/sun.nio.fs=ALL-UNNAMED", "--add-opens=java.base/sun.nio.fs=ALL-UNNAMED")
         dependsOn(tasks.buildPlugin)
         systemProperty("path.to.build.plugin", tasks.buildPlugin.get().archiveFile.get().asFile.absolutePath)
         systemProperty("ui.ide.version", providers.gradleProperty("uiIdeVersion").getOrElse(baselineIdeaVersion))
