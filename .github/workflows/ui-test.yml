@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ide: ['2026.2.4', '263.7307.112']
+        ide: ['2026.2.4', 'rc']
 
     steps:
       - uses: actions/checkout@v4

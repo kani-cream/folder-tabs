@@ -38,9 +38,9 @@ class FolderTabsUiTest {
     private fun requiredProperty(name: String): String =
         checkNotNull(System.getProperty(name)?.takeIf { it.isNotBlank() }) { "System property '$name' is not set" }
 
-    /** A build number such as 263.7307.112 is a release candidate; a version such as 2026.2.4 is a release. */
+    /** `rc` picks the latest release candidate; anything else is a release such as 2026.2.4. */
     private fun <T : ProjectInfoSpec> TestCase<T>.useIde(version: String): TestCase<T> =
-        if (version.startsWith("20")) useRelease(version) else useRC().withBuildNumber(version)
+        if (version == "rc") useRC() else useRelease(version)
 
     private fun context(testName: String): IDETestContext =
         Starter.newContext(
