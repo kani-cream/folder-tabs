@@ -1,9 +1,8 @@
 plugins {
-    // Kotlin 2.3.x: the IntelliJ Platform 2026.2 jars carry Kotlin 2.4 metadata, which a
-    // 2.3.x compiler reads without -Xskip-metadata-version-check.
-    kotlin("jvm") version "2.3.21" apply false
-    id("org.jetbrains.intellij.platform") version "2.18.1" apply false
-    id("org.jetbrains.kotlinx.kover") version "0.9.9" apply false
+    // Kotlin 2.4.x: the same language line as the Kotlin 2.4 stdlib bundled with IntelliJ Platform 2026.2.
+    kotlin("jvm") version "2.4.21" apply false
+    id("org.jetbrains.intellij.platform") version "2.19.0" apply false
+    id("org.jetbrains.kotlinx.kover") version "0.9.11" apply false
 }
 
 allprojects {
