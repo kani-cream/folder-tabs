@@ -17,6 +17,7 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
 
     <resource-bundle>messages.FolderTabsBundle</resource-bundle>
 
